@@ -8,7 +8,7 @@ import PageTransition from '../components/ui/page-transition'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Loader2, Check, X, ArrowLeft, Download, Save,
-  Sparkles, AlignLeft, Briefcase, FolderGit2, Wrench, GraduationCap, Edit3, Trash2
+  AlignLeft, Briefcase, FolderGit2, Wrench, GraduationCap, Edit3, Trash2
 } from 'lucide-react'
 
 const sections = [
@@ -313,7 +313,7 @@ export default function Editor() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6 pt-4">
+      <div className="w-full space-y-6 pt-4">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-8 w-48" />
         {[1, 2, 3].map((i) => (
@@ -325,7 +325,7 @@ export default function Editor() {
 
   return (
     <PageTransition>
-      <div className="max-w-5xl mx-auto pb-32 pt-2">
+      <div className="w-full pb-32 pt-2">
         
         {/* Back button */}
         <button
@@ -349,7 +349,7 @@ export default function Editor() {
                 {fixing ? (
                   <><Loader2 className="h-4.5 w-4.5 animate-spin" /> Rewriting sections...</>
                 ) : (
-                  <><Sparkles className="h-4.5 w-4.5" /> Run AI Rewriter</>
+                  <><Edit3 className="h-4.5 w-4.5" /> Run AI Rewriter</>
                 )}
               </Button>
             </div>
@@ -363,7 +363,7 @@ export default function Editor() {
         ) : (
           <Card className="shadow-xs border border-border">
             <CardContent className="text-center py-20">
-              <Sparkles className="h-12 w-12 mx-auto mb-4 text-primary animate-pulse" />
+              <Edit3 className="h-12 w-12 mx-auto mb-4 text-primary animate-pulse" />
               <p className="text-foreground font-bold text-lg mb-2">Improve Wording & Structure</p>
               <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6">
                 Our model will rewrite your summary, experience points, education headers, and project details to ensure high keyword match density.
@@ -372,7 +372,7 @@ export default function Editor() {
                 {fixing ? (
                   <><Loader2 className="h-4.5 w-4.5 animate-spin" /> Improving...</>
                 ) : (
-                  <><Sparkles className="h-4.5 w-4.5" /> Fix My Resume</>
+                  <><Edit3 className="h-4.5 w-4.5" /> Fix My Resume</>
                 )}
               </Button>
             </CardContent>

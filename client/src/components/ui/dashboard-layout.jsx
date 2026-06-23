@@ -4,8 +4,10 @@ import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth-context'
 import { Sheet, SheetTrigger, SheetContent } from './sheet'
 import ThemeToggle from './theme-toggle'
+import Logo from './logo'
 import {
-  LayoutDashboard, Upload, FileText, Menu, LogOut, Loader2, User, ChevronLeft, ChevronRight
+  LayoutDashboard, Upload, Menu, LogOut, Loader2, User, ChevronLeft, ChevronRight,
+  ShieldAlert, Briefcase, Mail, MessageSquare, Compass, Coins
 } from 'lucide-react'
 
 const navItems = [
@@ -21,16 +23,49 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(() => {
     return localStorage.getItem('sidebar-collapsed') === 'true'
   })
+  const [activeResume, setActiveResume] = useState(null)
+
+  // Extract active resume ID from URL path (matches /analysis/:resumeId or /editor/:resumeId)
+  const analysisMatch = loc.pathname.match(/^\/(analysis|editor)\/([^/]+)/)
+  const activeResumeId = analysisMatch ? analysisMatch[2] : null
 
   useEffect(() => {
-    if (!loading && !user) navigate('/login', { replace: true })
-  }, [user, loading, navigate])
+    if (activeResumeId) {
+      if (activeResume?._id === activeResumeId) return
+
+      fetch(`/api/resumes/${activeResumeId}`, { credentials: 'include' })
+        .then((res) => {
+          if (!res.ok) throw new Error('Failed to load resume details')
+          return res.json()
+        })
+        .then((data) => {
+          if (data && data.resume) {
+            setActiveResume(data.resume)
+          }
+        })
+        .catch((err) => {
+          console.error('Error fetching resume in layout:', err)
+          setActiveResume({ _id: activeResumeId, originalFilename: 'Resume Analysis' })
+        })
+    } else {
+      setActiveResume(null)
+    }
+  }, [activeResumeId, activeResume?._id])
 
   const toggleSidebar = () => {
     const nextVal = !collapsed
     setCollapsed(nextVal)
     localStorage.setItem('sidebar-collapsed', String(nextVal))
   }
+
+  const analysisTabs = activeResumeId ? [
+    { href: `/analysis/${activeResumeId}`, label: 'ATS Audit Scan', icon: ShieldAlert },
+    { href: `/analysis/${activeResumeId}/job-matcher`, label: 'ATS Job Matcher', icon: Briefcase },
+    { href: `/analysis/${activeResumeId}/cover-letter`, label: 'Cover Letter', icon: Mail },
+    { href: `/analysis/${activeResumeId}/interview-prep`, label: 'Interview Prep', icon: MessageSquare },
+    { href: `/analysis/${activeResumeId}/roadmap`, label: 'Career Roadmap', icon: Compass },
+    { href: `/analysis/${activeResumeId}/salary-negotiation`, label: 'Salary Coach', icon: Coins }
+  ] : []
 
   if (loading) {
     return (
@@ -45,22 +80,25 @@ export default function DashboardLayout() {
 
   if (!user) return null
 
-  const NavLink = ({ href, label, icon: Icon }) => {
+  const NavLink = ({ href, label, icon: Icon, nested }) => {
     const active = loc.pathname === href
     return (
       <Link
         to={href}
         onClick={() => setOpen(false)}
         className={cn(
-          'flex items-center gap-3 rounded-full px-5 py-3 text-sm font-medium transition-all duration-200 ease-out relative',
+          'flex items-center gap-3 rounded-full transition-all duration-200 ease-out relative',
+          nested 
+            ? 'px-4 py-2 text-xs font-semibold' 
+            : 'px-5 py-3 text-sm font-medium',
           active
-            ? 'bg-secondary text-primary font-semibold shadow-sm border border-border/20'
+            ? 'bg-secondary text-primary font-semibold shadow-xs border border-border/20'
             : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50',
-          collapsed && 'justify-center px-0 h-11 w-11 mx-auto'
+          collapsed && (nested ? 'justify-center px-0 h-9 w-9 mx-auto' : 'justify-center px-0 h-11 w-11 mx-auto')
         )}
         title={collapsed ? label : undefined}
       >
-        <Icon className={cn("h-5 w-5 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+        <Icon className={cn(nested ? "h-4 w-4" : "h-5 w-5", "shrink-0", active ? "text-primary" : "text-muted-foreground")} />
         {!collapsed && <span className="truncate">{label}</span>}
       </Link>
     )
@@ -82,6 +120,17 @@ export default function DashboardLayout() {
     } else if (parts[0] === 'analysis') {
       crumbs.push({ label: 'Dashboard', href: '/dashboard' })
       crumbs.push({ label: 'Analysis', href: `/analysis/${parts[1]}` })
+      if (parts[2] === 'job-matcher') {
+        crumbs.push({ label: 'Job Matcher', href: `/analysis/${parts[1]}/job-matcher` })
+      } else if (parts[2] === 'cover-letter') {
+        crumbs.push({ label: 'Cover Letter', href: `/analysis/${parts[1]}/cover-letter` })
+      } else if (parts[2] === 'interview-prep') {
+        crumbs.push({ label: 'Interview Prep', href: `/analysis/${parts[1]}/interview-prep` })
+      } else if (parts[2] === 'roadmap') {
+        crumbs.push({ label: 'Career Roadmap', href: `/analysis/${parts[1]}/roadmap` })
+      } else if (parts[2] === 'salary-negotiation') {
+        crumbs.push({ label: 'Salary Negotiation', href: `/analysis/${parts[1]}/salary-negotiation` })
+      }
     } else if (parts[0] === 'editor') {
       crumbs.push({ label: 'Dashboard', href: '/dashboard' })
       crumbs.push({ label: 'Editor', href: `/editor/${parts[1]}` })
@@ -104,16 +153,22 @@ export default function DashboardLayout() {
         {/* Toggle Collapse Button */}
         <button
           onClick={toggleSidebar}
-          className="absolute -right-3.5 top-6 h-7 w-7 bg-card border border-border text-foreground hover:bg-secondary rounded-full flex items-center justify-center shadow-xs cursor-pointer z-50 transition-colors"
+          className="absolute -right-3.5 top-[22px] h-7 w-7 bg-card border border-border text-foreground hover:bg-secondary rounded-full flex items-center justify-center shadow-xs cursor-pointer z-50 transition-colors"
           title={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
  
-        <div className="space-y-6">
-          <Link to="/dashboard" className="flex items-center gap-2 px-3 py-2 group">
-            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-md shadow-primary/20 group-hover:scale-105 transition-transform duration-200 shrink-0">
-              <FileText className="h-5 w-5 text-primary-foreground" />
+        <div className="flex-1 overflow-y-auto scrollbar-none space-y-6 py-2">
+          <Link 
+            to="/dashboard" 
+            className={cn(
+              "flex items-center gap-2.5 py-2 group transition-all duration-200", 
+              collapsed ? "justify-center px-0" : "px-3"
+            )}
+          >
+            <div className="h-9 w-9 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-200">
+              <Logo className="h-8 w-8" />
             </div>
             {!collapsed && (
               <span className="font-semibold text-xl tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent truncate">
@@ -126,17 +181,35 @@ export default function DashboardLayout() {
               <NavLink key={item.href} {...item} />
             ))}
           </nav>
+
+          {activeResumeId && (
+            <div className={cn("space-y-2 pt-4 border-t border-border/40", collapsed ? "" : "px-1")}>
+              {!collapsed && (
+                <div className="px-3 mb-1 flex flex-col gap-0.5">
+                  <span className="text-[10px] font-black text-muted-foreground/50 tracking-wider uppercase">Active Resume</span>
+                  <span className="text-xs font-bold text-foreground/95 truncate max-w-full" title={activeResume?.originalFilename || 'Loading resume...'}>
+                    {activeResume?.originalFilename || 'Loading resume...'}
+                  </span>
+                </div>
+              )}
+              <div className="space-y-1">
+                {analysisTabs.map((item) => (
+                  <NavLink key={item.href} {...item} nested />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
  
         <div className="border-t border-border pt-4">
           {collapsed ? (
             <div className="flex flex-col items-center gap-4">
               <Link to="/profile" className="relative group/avatar" title="View Profile">
-                <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center font-bold text-primary border border-border hover:border-primary/40 transition-colors shrink-0 overflow-hidden">
-                  {user.profileImage ? (
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary border border-primary/20 hover:border-primary/40 transition-colors shrink-0 overflow-hidden">
+                  {user.profileImage && user.profileImage.trim() !== '' ? (
                     <img src={user.profileImage} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    user.email ? user.email[0].toUpperCase() : 'U'
+                    <span className="text-sm font-semibold">{user.email ? user.email[0].toUpperCase() : 'U'}</span>
                   )}
                 </div>
               </Link>
@@ -150,33 +223,34 @@ export default function DashboardLayout() {
               </button>
             </div>
           ) : (
-            <>
-              <div className="flex items-center justify-between mb-4 px-3">
-                <Link to="/profile" className="flex items-center gap-2 min-w-0 group/avatar">
-                  <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary border border-border hover:border-primary/40 transition-colors shrink-0 overflow-hidden">
-                    {user.profileImage ? (
-                      <img src={user.profileImage} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      user.email ? user.email[0].toUpperCase() : 'U'
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-foreground group-hover/avatar:text-primary transition-colors truncate">
-                      {user.name || 'User Account'}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
-                  </div>
-                </Link>
+            <div className="bg-secondary/20 border border-border/40 rounded-2xl p-3 space-y-3">
+              <Link to="/profile" className="flex items-center gap-3 min-w-0 group/avatar">
+                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary border border-primary/20 group-hover/avatar:border-primary/40 transition-colors shrink-0 overflow-hidden">
+                  {user.profileImage && user.profileImage.trim() !== '' ? (
+                    <img src={user.profileImage} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-semibold">{user.email ? user.email[0].toUpperCase() : 'U'}</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-foreground group-hover/avatar:text-primary transition-colors truncate">
+                    {user.name || 'User Account'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                </div>
+              </Link>
+              <div className="flex items-center justify-between pt-2 border-t border-border/40">
                 <ThemeToggle />
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
+                  title="Logout"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>Logout</span>
+                </button>
               </div>
-              <button
-                onClick={logout}
-                className="flex items-center gap-3 rounded-full px-5 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 w-full transition-all cursor-pointer"
-              >
-                <LogOut className="h-5 w-5" />
-                Logout
-              </button>
-            </>
+            </div>
           )}
         </div>
       </aside>
@@ -184,10 +258,10 @@ export default function DashboardLayout() {
       {/* Mobile menu sheet */}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="w-72 bg-card p-6 border-r border-border flex flex-col justify-between">
-          <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto scrollbar-none space-y-6">
             <div className="flex items-center gap-2 px-3 py-2">
-              <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center">
-                <FileText className="h-5 w-5 text-primary-foreground" />
+              <div className="h-9 w-9 flex items-center justify-center">
+                <Logo className="h-8 w-8" />
               </div>
               <span className="font-semibold text-xl tracking-tight">ResuLens</span>
             </div>
@@ -195,33 +269,54 @@ export default function DashboardLayout() {
               {navItems.map((item) => (
                 <NavLink key={item.href} {...item} />
               ))}
+
+              {activeResumeId && (
+                <div className="space-y-2 pt-4 border-t border-border/40">
+                  <div className="px-3 mb-1 flex flex-col gap-0.5">
+                    <span className="text-[10px] font-black text-muted-foreground/50 tracking-wider uppercase">Active Resume</span>
+                    <span className="text-xs font-bold text-foreground/95 truncate max-w-full" title={activeResume?.originalFilename || 'Loading resume...'}>
+                      {activeResume?.originalFilename || 'Loading resume...'}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {analysisTabs.map((item) => (
+                      <NavLink key={item.href} {...item} nested />
+                    ))}
+                  </div>
+                </div>
+              )}
             </nav>
           </div>
  
           <div className="border-t border-border pt-4">
-            <div className="flex items-center justify-between mb-4 px-3">
-              <Link to="/profile" onClick={() => setOpen(false)} className="flex items-center gap-2 min-w-0">
-                <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary shrink-0 overflow-hidden">
-                  {user.profileImage ? (
+            <div className="bg-secondary/20 border border-border/40 rounded-2xl p-3 space-y-3">
+              <Link to="/profile" onClick={() => setOpen(false)} className="flex items-center gap-3 min-w-0 group/avatar">
+                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary border border-primary/20 shrink-0 overflow-hidden">
+                  {user.profileImage && user.profileImage.trim() !== '' ? (
                     <img src={user.profileImage} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    user.email ? user.email[0].toUpperCase() : 'U'
+                    <span className="text-sm font-semibold">{user.email ? user.email[0].toUpperCase() : 'U'}</span>
                   )}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-foreground truncate">{user.name || 'User Account'}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-foreground group-hover/avatar:text-primary transition-colors truncate">
+                    {user.name || 'User Account'}
+                  </p>
                   <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
                 </div>
               </Link>
-              <ThemeToggle />
+              <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                <ThemeToggle />
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
+                  title="Logout"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>Logout</span>
+                </button>
+              </div>
             </div>
-            <button
-              onClick={logout}
-              className="flex items-center gap-3 rounded-full px-5 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 w-full transition-all cursor-pointer"
-            >
-              <LogOut className="h-5 w-5" />
-              Logout
-            </button>
           </div>
         </SheetContent>
       </Sheet>
@@ -231,8 +326,8 @@ export default function DashboardLayout() {
         {/* Mobile top bar */}
         <header className="md:hidden flex items-center justify-between p-4 bg-card border-b border-border sticky top-0 z-40">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center">
-              <FileText className="h-4.5 w-4.5 text-primary-foreground" />
+            <div className="h-8 w-8 flex items-center justify-center">
+              <Logo className="h-7 w-7" />
             </div>
             <span className="font-semibold text-lg">ResuLens</span>
           </div>

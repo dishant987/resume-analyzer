@@ -1,6 +1,5 @@
-import { getModel } from './client.js'
+import { generateAIContent } from './aiGateway.js'
 import { systemPrompt, userPrompt } from './prompts/improve.js'
-import { handleGeminiError } from './errorHandler.js'
 
 const improveSchema = {
   type: 'object',
@@ -33,23 +32,10 @@ const improveSchema = {
   required: ['summary', 'experience', 'projects', 'skills'],
 }
 
-const callGemini = async (rawText, issues) => {
-  const model = getModel(improveSchema)
-  const result = await model.generateContent(
-    `${systemPrompt}\n\n${userPrompt(rawText, issues)}`
-  )
-  return JSON.parse(result.response.text())
-}
-
 export const improveResume = async (rawText, issues) => {
-  try {
-    return await callGemini(rawText, issues)
-  } catch (firstErr) {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      return await callGemini(rawText, issues)
-    } catch (err) {
-      throw handleGeminiError(err, 'Improvement failed')
-    }
-  }
+  return await generateAIContent({
+    prompt: `${systemPrompt}\n\n${userPrompt(rawText, issues)}`,
+    schema: improveSchema,
+    fallbackLabel: 'Resume Improvement'
+  })
 }

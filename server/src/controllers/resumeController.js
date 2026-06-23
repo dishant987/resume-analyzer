@@ -4,8 +4,8 @@ import DeletedResume from '../models/DeletedResume.js'
 import { uploadBuffer } from '../services/cloudinary.js'
 import { parsePdf, parseDocx } from '../services/parsers/index.js'
 import Analysis from '../models/Analysis.js'
-import { analyzeResume, extractPdfTextWithGemini } from '../services/gemini/analyzeService.js'
-import fs from 'fs'
+import { analyzeResume } from '../services/gemini/analyzeService.js'
+import logger from '../utils/logger.js'
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -109,28 +109,6 @@ export const uploadResume = async (req, res, next) => {
 
     let rawText = fileType === 'pdf' ? await parsePdf(buffer) : await parseDocx(buffer)
 
-    try {
-      fs.writeFileSync(
-        'debug_upload.log',
-        `TIMESTAMP: ${new Date().toISOString()}\nFILENAME: ${req.file.originalname}\nLOCAL TEXT LENGTH: ${rawText ? rawText.length : 0}\n`
-      )
-    } catch (err) {
-      console.error('Failed to write debug log:', err.message)
-    }
-
-    if (fileType === 'pdf' && (!rawText || rawText.trim().length < 150)) {
-      console.log('Local PDF text extraction returned insufficient text. Falling back to Gemini OCR...')
-      try {
-        rawText = await extractPdfTextWithGemini(buffer)
-        fs.appendFileSync(
-          'debug_upload.log',
-          `GEMINI TEXT LENGTH: ${rawText ? rawText.length : 0}\nGEMINI TEXT PREVIEW:\n${rawText}\n`
-        )
-      } catch (geminiErr) {
-        console.error('Gemini PDF text extraction fallback failed:', geminiErr.message)
-      }
-    }
-
     if (!rawText || rawText.trim().length < 150) {
       return res.status(400).json({
         message: 'No readable text could be found in this document. Please make sure you are uploading a text-based PDF/Word document rather than a scanned image, photo, or flattened PDF.'
@@ -153,7 +131,7 @@ export const uploadResume = async (req, res, next) => {
       fileUrl = result.fileUrl
       publicId = result.publicId
     } catch (cloudErr) {
-      console.warn('Cloudinary upload failed, saving without remote file:', cloudErr.message)
+      logger.warn(`Cloudinary upload failed, saving without remote file: ${cloudErr.message}`)
     }
 
     const resume = await Resume.create({

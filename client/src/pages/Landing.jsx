@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, Sparkles, FileText, ArrowRight, CheckCircle2, ShieldCheck, Zap, Star, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Upload, FileText, ArrowRight, CheckCircle2, ShieldCheck, Zap, Star, AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { useAuth } from '../lib/auth-context'
 
@@ -23,7 +23,7 @@ const steps = [
     stepNum: '01'
   },
   {
-    icon: Sparkles,
+    icon: Zap,
     color: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
     title: 'Multi-Dimension Analysis',
     desc: 'Our AI model analyzes your resume across 6 key hiring criteria, scoring compatibility and finding hidden issues.',
@@ -38,17 +38,123 @@ const steps = [
   },
 ]
 
+const sandboxCases = [
+  {
+    role: 'Software Engineer',
+    scoreOriginal: 48,
+    scoreOptimized: 96,
+    originalText: '⚠ Red flag: resume lacks active, metric-driven achievements. Keywords match rate is below optimal hiring levels.',
+    optimizedText: '✓ Exceptional compatibility. Sections are standard, language uses active metrics-driven phrasing, and skills keywords are properly represented.',
+    keywords: [
+      { text: 'React Context', opt: true },
+      { text: 'TypeScript', opt: true },
+      { text: 'CI/CD Pipelines', opt: true },
+      { text: 'GraphQL', opt: false },
+      { text: 'Microservices', opt: false },
+    ],
+    originalBullet: '⚠️ I was responsible for working on the main front-end screen using react. I also did some typing stuff and helped the database guys.',
+    optimizedBullet: '💡 Designed and pioneered responsive user dashboards using React Context and TypeScript, increasing search speed by 42% and boosting daily active session count.',
+    checks: [
+      { text: 'Standard single-column format', check: true },
+      { text: 'No complex tables or graphics', check: true },
+      { text: 'Contains active email address', check: true },
+      { text: 'Skills section correctly parsed', check: false },
+      { text: 'Quantitative experience points', check: false },
+    ]
+  },
+  {
+    role: 'Data Scientist',
+    scoreOriginal: 42,
+    scoreOptimized: 94,
+    originalText: '⚠ Red flag: lacks statistical validation for projects. Model deployment details are vague and unquantified.',
+    optimizedText: '✓ Excellent compatibility. Model validation metrics, pipeline scaling tools, and deployment environments are clearly stated with business impact.',
+    keywords: [
+      { text: 'PyTorch & NumPy', opt: true },
+      { text: 'AWS SageMaker', opt: true },
+      { text: 'A/B Testing', opt: true },
+      { text: 'SQL Databases', opt: false },
+      { text: 'Docker', opt: false },
+    ],
+    originalBullet: '⚠️ I did some machine learning models in Python to predict customer churn and wrote a small script to put it in production.',
+    optimizedBullet: '💡 Engineered customer churn prediction models using PyTorch, deployable via AWS SageMaker, reducing user churn by 18% and reclaiming $120K in ARR.',
+    checks: [
+      { text: 'Standard single-column format', check: true },
+      { text: 'No complex tables or graphics', check: true },
+      { text: 'Contains active email address', check: false },
+      { text: 'Skills section correctly parsed', check: true },
+      { text: 'Quantitative experience points', check: false },
+    ]
+  },
+  {
+    role: 'Product Manager',
+    scoreOriginal: 51,
+    scoreOptimized: 95,
+    originalText: '⚠ Needs improvement: lacks cross-functional leadership indicators. Product lifecycle milestones are stated passively.',
+    optimizedText: '✓ Highly compatible. Demonstrates agile execution, backlog management, and strong revenue-driving outcomes.',
+    keywords: [
+      { text: 'Agile Roadmaps', opt: true },
+      { text: 'User Research', opt: true },
+      { text: 'Jira & Confluence', opt: true },
+      { text: 'SQL Querying', opt: false },
+      { text: 'Figma Design', opt: false },
+    ],
+    originalBullet: '⚠️ Led the team to build a mobile app feature. Talked to customers and made sure the developers stayed on track.',
+    optimizedBullet: '💡 Defined product roadmap and directed cross-functional team of 8 to launch mobile app features, increasing user retention by 24%.',
+    checks: [
+      { text: 'Standard single-column format', check: true },
+      { text: 'No complex tables or graphics', check: false },
+      { text: 'Contains active email address', check: true },
+      { text: 'Skills section correctly parsed', check: false },
+      { text: 'Quantitative experience points', check: true },
+    ]
+  },
+  {
+    role: 'Growth Marketer',
+    scoreOriginal: 45,
+    scoreOptimized: 93,
+    originalText: '⚠ Needs improvement: fails to specify acquisition channels. CAC, LTV, and campaign ROI metrics are completely missing.',
+    optimizedText: '✓ Exceptional layout. Explicitly details channel spends, conversion rates, and scaling ROI performance metrics.',
+    keywords: [
+      { text: 'SEO / SEM Strategy', opt: true },
+      { text: 'Google Analytics', opt: true },
+      { text: 'CAC Optimization', opt: true },
+      { text: 'Social Ads Spends', opt: false },
+      { text: 'Copywriting', opt: false },
+    ],
+    originalBullet: '⚠️ Managed our social media accounts and set up some Google ads campaigns to bring traffic to the landing page.',
+    optimizedBullet: '💡 Scaled Google ads campaigns and SEO strategy to drive 150K monthly visitors, reducing Customer Acquisition Cost (CAC) by 35%.',
+    checks: [
+      { text: 'Standard single-column format', check: false },
+      { text: 'No complex tables or graphics', check: true },
+      { text: 'Contains active email address', check: true },
+      { text: 'Skills section correctly parsed', check: true },
+      { text: 'Quantitative experience points', check: false },
+    ]
+  }
+]
+
 export default function Landing() {
   const { user, loading } = useAuth()
+  const [activeCaseIndex, setActiveCaseIndex] = useState(0)
   const [isOptimized, setIsOptimized] = useState(true)
   const [isScanning, setIsScanning] = useState(false)
+
+  const activeCase = sandboxCases[activeCaseIndex]
 
   const triggerScan = () => {
     setIsScanning(true)
     setTimeout(() => {
       setIsScanning(false)
       setIsOptimized(true)
-    }, 1800)
+      setActiveCaseIndex((prev) => {
+        if (sandboxCases.length <= 1) return prev;
+        let nextIndex = prev;
+        while (nextIndex === prev) {
+          nextIndex = Math.floor(Math.random() * sandboxCases.length);
+        }
+        return nextIndex;
+      });
+    }, 1800);
   }
 
   return (
@@ -105,7 +211,7 @@ export default function Landing() {
               style={{ backgroundColor: 'color-mix(in srgb, var(--card) 60%, transparent)' }}
             >
               <Star className="h-3 w-3 fill-primary text-primary" />
-              Powered by Gemini 2.5 Flash
+              Advanced Resume Intelligence
             </span>
           </motion.div>
 
@@ -117,7 +223,7 @@ export default function Landing() {
           >
             Optimize your resume for
             <br />
-            <span className="bg-gradient-to-r from-blue-500 via-violet-500 to-indigo-600 bg-clip-text text-transparent drop-shadow-xs">
+            <span className="text-primary">
               maximum ATS impact
             </span>
           </motion.h1>
@@ -218,8 +324,8 @@ export default function Landing() {
               <div className="w-3 h-3 rounded-full bg-green-400/80" />
             </div>
             <div className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5 font-mono">
-              <Sparkles className="h-3.5 w-3.5 text-primary animate-pulse" />
-              resulens-dashboard_live.png
+              <FileText className="h-3.5 w-3.5 text-primary" />
+              resulens_resume_{activeCase.role.toLowerCase().replace(/\s+/g, '_')}.pdf
             </div>
             <div className="w-10" />
           </div>
@@ -239,7 +345,7 @@ export default function Landing() {
                   <div className="absolute inset-0 rounded-full border-t-4 border-primary animate-spin" />
                 </div>
                 <p className="font-bold text-base text-foreground">Analyzing structure & grammar...</p>
-                <p className="text-xs text-muted-foreground mt-1">Checking ATS section standards</p>
+                <p className="text-xs text-muted-foreground mt-1">Checking ATS standards for {activeCase.role}</p>
               </motion.div>
             ) : null}
           </AnimatePresence>
@@ -254,32 +360,34 @@ export default function Landing() {
               <div className="border border-border/60 rounded-2xl p-6 bg-background/50 backdrop-blur-xs relative overflow-hidden transition-all duration-300">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="font-extrabold text-base text-foreground">ATS Compatibility Score</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-extrabold text-base text-foreground">ATS Compatibility Score</h3>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                        {activeCase.role}
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">Scanned against global recruitment parsers</p>
                   </div>
                   <motion.span
-                    key={isOptimized ? 'opt-score' : 'orig-score'}
+                    key={isOptimized ? `opt-score-${activeCaseIndex}` : `orig-score-${activeCaseIndex}`}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: [0.8, 1.1, 1], opacity: 1 }}
                     transition={{ duration: 0.3 }}
                     className={`text-3xl font-black transition-colors duration-300 ${isOptimized ? 'text-emerald-500' : 'text-destructive'}`}
                   >
-                    {isOptimized ? '96/100' : '48/100'}
+                    {isOptimized ? `${activeCase.scoreOptimized}/100` : `${activeCase.scoreOriginal}/100`}
                   </motion.span>
                 </div>
                 <div className="h-3 bg-secondary rounded-full overflow-hidden border border-border/20">
                   <motion.div
-                    initial={{ width: '48%' }}
-                    animate={{ width: isOptimized ? '96%' : '48%' }}
+                    initial={{ width: `${activeCase.scoreOriginal}%` }}
+                    animate={{ width: isOptimized ? `${activeCase.scoreOptimized}%` : `${activeCase.scoreOriginal}%` }}
                     transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                     className={`h-full rounded-full transition-colors duration-300 ${isOptimized ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-destructive to-red-400'}`}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground mt-4 leading-relaxed font-medium transition-all">
-                  {isOptimized
-                    ? '✓ Exceptional compatibility. Sections are standard, language uses active metrics-driven phrasing, and skills keywords are properly represented.'
-                    : '⚠ Red flag: resume lacks active, metric-driven achievements. Keywords match rate is below optimal hiring levels.'
-                  }
+                  {isOptimized ? activeCase.optimizedText : activeCase.originalText}
                 </p>
               </div>
 
@@ -287,13 +395,7 @@ export default function Landing() {
               <div className="border border-border/60 rounded-2xl p-6 bg-background/50 backdrop-blur-xs space-y-4">
                 <h4 className="font-bold text-sm text-foreground">Recommended Skill Keywords</h4>
                 <div className="flex flex-wrap gap-2.5">
-                  {[
-                    { text: 'React Context', opt: true },
-                    { text: 'TypeScript', opt: true },
-                    { text: 'CI/CD Pipelines', opt: true },
-                    { text: 'GraphQL', opt: false },
-                    { text: 'Microservices', opt: false },
-                  ].map((tag) => (
+                  {activeCase.keywords.map((tag) => (
                     <motion.span
                       key={tag.text}
                       layout
@@ -316,23 +418,23 @@ export default function Landing() {
                 <AnimatePresence mode="wait">
                   {isOptimized ? (
                     <motion.div
-                      key="opt-bullet"
+                      key={`opt-bullet-${activeCaseIndex}`}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       className="text-xs text-foreground bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-4 font-semibold leading-relaxed"
                     >
-                      💡 Designed and pioneered responsive user dashboards using React Context and TypeScript, increasing search speed by 42% and boosting daily active session count.
+                      {activeCase.optimizedBullet}
                     </motion.div>
                   ) : (
                     <motion.div
-                      key="orig-bullet"
+                      key={`orig-bullet-${activeCaseIndex}`}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       className="text-xs text-muted-foreground bg-destructive/5 border border-destructive/15 rounded-xl p-4 leading-relaxed font-medium"
                     >
-                      ⚠️ I was responsible for working on the main front-end screen using react. I also did some typing stuff and helped the database guys.
+                      {activeCase.originalBullet}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -344,13 +446,7 @@ export default function Landing() {
               <div>
                 <h3 className="font-bold text-sm text-foreground mb-4">ATS Compliance Checks</h3>
                 <ul className="space-y-3.5">
-                  {[
-                    { text: 'Standard single-column format', check: true },
-                    { text: 'No complex tables or graphics', check: true },
-                    { text: 'Contains active email address', check: true },
-                    { text: 'Skills section correctly parsed', check: false },
-                    { text: 'Quantitative experience points', check: false },
-                  ].map((item, idx) => {
+                  {activeCase.checks.map((item, idx) => {
                     const pass = isOptimized ? true : item.check
                     return (
                       <li key={idx} className="flex items-start gap-2.5 text-xs">
@@ -404,7 +500,7 @@ export default function Landing() {
                 desc: 'Detailed breakdown across 6 components including Projects, Experience, and Grammar, so you know exactly where to make adjustments.'
               },
               {
-                icon: Sparkles,
+                icon: FileText,
                 title: 'Intelligent AI Rewriting',
                 desc: 'Powered by advanced language models to offer professional, context-rich wording modifications tailored to your specific field.'
               }

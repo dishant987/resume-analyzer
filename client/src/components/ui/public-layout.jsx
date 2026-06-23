@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { FileText, Menu, X, Sparkles } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ThemeToggle from './theme-toggle'
 import { Button } from './button'
 import { useAuth } from '../../lib/auth-context'
+import Logo from './logo'
 
 export default function PublicLayout() {
   const { user, loading } = useAuth()
@@ -66,13 +67,12 @@ export default function PublicLayout() {
             <motion.div 
               whileHover={{ rotate: 10, scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-              className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-md shadow-primary/20"
+              className="h-9 w-9 flex items-center justify-center shrink-0"
             >
-              <FileText className="h-5 w-5 text-primary-foreground" />
+              <Logo className="h-8 w-8" />
             </motion.div>
             <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent flex items-center gap-1">
               ResuLens
-              
             </span>
           </Link>
 

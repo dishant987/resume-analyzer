@@ -1,6 +1,5 @@
-import genAI, { getModel } from './client.js'
+import { generateAIContent } from './aiGateway.js'
 import { systemPrompt } from './prompts/analyze.js'
-import { handleGeminiError } from './errorHandler.js'
 
 const analysisSchema = {
   type: 'object',
@@ -49,35 +48,12 @@ const analysisSchema = {
   ],
 }
 
-const callGemini = async (rawText) => {
-  const model = getModel(analysisSchema)
-  const result = await model.generateContent(`${systemPrompt}\n\n${rawText}`)
-  return JSON.parse(result.response.text())
-}
-
 export const analyzeResume = async (rawText) => {
-  try {
-    return await callGemini(rawText)
-  } catch (firstErr) {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      return await callGemini(rawText)
-    } catch (err) {
-      throw handleGeminiError(err, 'Analysis failed')
-    }
-  }
+  return await generateAIContent({
+    prompt: `${systemPrompt}\n\n${rawText}`,
+    schema: analysisSchema,
+    fallbackLabel: 'Resume Analysis'
+  })
 }
 
-export const extractPdfTextWithGemini = async (buffer) => {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        data: buffer.toString('base64'),
-        mimeType: 'application/pdf',
-      },
-    },
-    'Extract all readable text from this resume PDF. Maintain the structure and layout. Return only the extracted text without any extra chat or preamble.',
-  ])
-  return result.response.text()
-}
+

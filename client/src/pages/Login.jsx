@@ -6,7 +6,8 @@ import { Input } from '../components/ui/input'
 import { Form, FormField } from '../components/ui/form'
 import { auth } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
-import { FileText, ArrowRight, Loader2 } from 'lucide-react'
+import { ArrowRight, Loader2 } from 'lucide-react'
+import Logo from '../components/ui/logo'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -51,8 +52,8 @@ export default function Login() {
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12 bg-background bg-grid-pattern transition-colors duration-200">
       <Card className="w-full max-w-[420px] shadow-lg border border-border p-4 sm:p-8 bg-card">
         <div className="flex flex-col items-center mb-8">
-          <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center shadow-md shadow-primary/20 mb-4">
-            <FileText className="h-6 w-6 text-primary-foreground" />
+          <div className="h-12 w-12 flex items-center justify-center mb-4">
+            <Logo className="h-11 w-11" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Sign in</h1>
           <p className="text-sm text-muted-foreground mt-1">to continue to ResuLens</p>

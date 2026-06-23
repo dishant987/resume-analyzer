@@ -144,7 +144,7 @@ export default function Profile() {
 
   return (
     <PageTransition>
-      <div className="max-w-4xl mx-auto space-y-8 pb-16">
+      <div className="w-full space-y-8 pb-16">
         <div>
           <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Account Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage your profile details, avatar, and password.</p>

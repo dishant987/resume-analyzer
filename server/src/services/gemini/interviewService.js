@@ -1,6 +1,5 @@
-import { getModel } from './client.js'
+import { generateAIContent } from './aiGateway.js'
 import { systemPrompt, userPrompt } from './prompts/interview.js'
-import { handleGeminiError } from './errorHandler.js'
 
 const interviewSchema = {
   type: 'object',
@@ -22,23 +21,10 @@ const interviewSchema = {
   required: ['questions'],
 }
 
-const callGemini = async (rawText) => {
-  const model = getModel(interviewSchema)
-  const result = await model.generateContent(
-    `${systemPrompt}\n\n${userPrompt(rawText)}`
-  )
-  return JSON.parse(result.response.text())
-}
-
 export const generateInterviewQuestions = async (rawText) => {
-  try {
-    return await callGemini(rawText)
-  } catch {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      return await callGemini(rawText)
-    } catch (err) {
-      throw handleGeminiError(err, 'Interview prep generation failed')
-    }
-  }
+  return await generateAIContent({
+    prompt: `${systemPrompt}\n\n${userPrompt(rawText)}`,
+    schema: interviewSchema,
+    fallbackLabel: 'Interview Prep Generation'
+  })
 }

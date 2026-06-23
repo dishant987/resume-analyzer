@@ -1,6 +1,5 @@
-import { getModel } from './client.js'
+import { generateAIContent } from './aiGateway.js'
 import { systemPrompt, userPrompt } from './prompts/match.js'
-import { handleGeminiError } from './errorHandler.js'
 
 const matchSchema = {
   type: 'object',
@@ -14,23 +13,10 @@ const matchSchema = {
   required: ['matchPercentage', 'explanation', 'missingKeywords', 'matchedKeywords', 'recommendations'],
 }
 
-const callGemini = async (rawText, jdText) => {
-  const model = getModel(matchSchema)
-  const result = await model.generateContent(
-    `${systemPrompt}\n\n${userPrompt(rawText, jdText)}`
-  )
-  return JSON.parse(result.response.text())
-}
-
 export const matchResume = async (rawText, jdText) => {
-  try {
-    return await callGemini(rawText, jdText)
-  } catch {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      return await callGemini(rawText, jdText)
-    } catch (err) {
-      throw handleGeminiError(err, 'JD Matching failed')
-    }
-  }
+  return await generateAIContent({
+    prompt: `${systemPrompt}\n\n${userPrompt(rawText, jdText)}`,
+    schema: matchSchema,
+    fallbackLabel: 'JD Matching'
+  })
 }

@@ -1,64 +1,80 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --background: hsl(210 20% 98%); /* elegant light grey #f8f9fa */
-  --foreground: hsl(225 15% 15%); /* Google text color #202124 */
-  
-  --card: hsl(0 0% 100%); /* white #ffffff */
+  --background: hsl(210 20% 98%);
+  /* elegant light grey #f8f9fa */
+  --foreground: hsl(225 15% 15%);
+  /* Google text color #202124 */
+
+  --card: hsl(0 0% 100%);
+  /* white #ffffff */
   --card-foreground: hsl(225 15% 15%);
-  
+
   --popover: hsl(0 0% 100%);
   --popover-foreground: hsl(225 15% 15%);
-  
-  --primary: hsl(217 89% 53%); /* Google Blue #1a73e8 */
+
+  --primary: hsl(217 89% 53%);
+  /* Google Blue #1a73e8 */
   --primary-foreground: hsl(0 0% 100%);
-  
-  --secondary: hsl(210 16% 93%); /* light gray hover #f1f3f4 */
+
+  --secondary: hsl(210 16% 93%);
+  /* light gray hover #f1f3f4 */
   --secondary-foreground: hsl(225 15% 15%);
-  
+
   --muted: hsl(210 16% 95%);
-  --muted-foreground: hsl(220 9% 46%); /* #5f6368 */
-  
-  --accent: hsl(217 89% 53%); /* Blue */
+  --muted-foreground: hsl(220 9% 46%);
+  /* #5f6368 */
+
+  --accent: hsl(217 89% 53%);
+  /* Blue */
   --accent-foreground: hsl(0 0% 100%);
-  
-  --destructive: hsl(4 90% 58%); /* Google Red #ea4335 */
+
+  --destructive: hsl(4 90% 58%);
+  /* Google Red #ea4335 */
   --destructive-foreground: hsl(0 0% 100%);
-  
-  --border: hsl(220 14% 90%); /* Google border #dadce0 */
+
+  --border: hsl(220 14% 90%);
+  /* Google border #dadce0 */
   --input: hsl(220 14% 90%);
   --ring: hsl(217 89% 53%);
-  
-  --radius: 1rem; /* rounded-2xl style, premium modern UI */
+
+  --radius: 1rem;
+  /* rounded-2xl style, premium modern UI */
 }
 
 .dark {
-  --background: hsl(220 15% 8%); /* Sleek dark theme #121214 */
-  --foreground: hsl(210 17% 93%); /* Google light text #e8eaed */
-  
-  --card: hsl(220 15% 12%); /* Card surface #1c1d21 */
+  --background: hsl(220 15% 8%);
+  /* Sleek dark theme #121214 */
+  --foreground: hsl(210 17% 93%);
+  /* Google light text #e8eaed */
+
+  --card: hsl(220 15% 12%);
+  /* Card surface #1c1d21 */
   --card-foreground: hsl(210 17% 93%);
-  
+
   --popover: hsl(220 15% 12%);
   --popover-foreground: hsl(210 17% 93%);
-  
-  --primary: hsl(217 95% 68%); /* brighter blue for dark mode */
+
+  --primary: hsl(217 95% 68%);
+  /* brighter blue for dark mode */
   --primary-foreground: hsl(220 15% 8%);
-  
-  --secondary: hsl(220 15% 16%); /* dark hover #292a2d */
+
+  --secondary: hsl(220 15% 16%);
+  /* dark hover #292a2d */
   --secondary-foreground: hsl(210 17% 93%);
-  
+
   --muted: hsl(220 15% 14%);
-  --muted-foreground: hsl(218 11% 65%); /* #9aa0a6 */
-  
+  --muted-foreground: hsl(218 11% 65%);
+  /* #9aa0a6 */
+
   --accent: hsl(217 95% 68%);
   --accent-foreground: hsl(220 15% 8%);
-  
+
   --destructive: hsl(4 90% 65%);
   --destructive-foreground: hsl(0 0% 100%);
-  
-  --border: hsl(220 15% 20%); /* #303134 */
+
+  --border: hsl(220 15% 20%);
+  /* #303134 */
   --input: hsl(220 15% 20%);
   --ring: hsl(217 95% 68%);
 }
@@ -99,7 +115,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: 'Outfit', sans-serif;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -110,13 +131,16 @@ h1, h2, h3, h4, h5, h6 {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted-foreground);
 }
@@ -124,12 +148,13 @@ h1, h2, h3, h4, h5, h6 {
 /* Google-like subtle grid patterns or gradients */
 .bg-grid-pattern {
   background-size: 40px 40px;
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(128, 128, 128, 0.04) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(128, 128, 128, 0.04) 1px, transparent 1px);
 }
+
 .dark .bg-grid-pattern {
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
 }

@@ -1,6 +1,5 @@
-import { getModel } from './client.js'
+import { generateAIContent } from './aiGateway.js'
 import { systemPrompt, userPrompt } from './prompts/coverLetter.js'
-import { handleGeminiError } from './errorHandler.js'
 
 const coverLetterSchema = {
   type: 'object',
@@ -10,23 +9,10 @@ const coverLetterSchema = {
   required: ['coverLetter'],
 }
 
-const callGemini = async (rawText, jdText) => {
-  const model = getModel(coverLetterSchema)
-  const result = await model.generateContent(
-    `${systemPrompt}\n\n${userPrompt(rawText, jdText)}`
-  )
-  return JSON.parse(result.response.text())
-}
-
 export const createCoverLetter = async (rawText, jdText) => {
-  try {
-    return await callGemini(rawText, jdText)
-  } catch {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      return await callGemini(rawText, jdText)
-    } catch (err) {
-      throw handleGeminiError(err, 'Cover Letter generation failed')
-    }
-  }
+  return await generateAIContent({
+    prompt: `${systemPrompt}\n\n${userPrompt(rawText, jdText)}`,
+    schema: coverLetterSchema,
+    fallbackLabel: 'Cover Letter Generation'
+  })
 }

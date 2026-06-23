@@ -78,7 +78,7 @@ export default function Upload() {
 
   return (
     <PageTransition>
-      <div className="max-w-2xl mx-auto space-y-6 pt-4">
+      <div className="w-full space-y-6 pt-4">
         
         {/* Back button */}
         <button

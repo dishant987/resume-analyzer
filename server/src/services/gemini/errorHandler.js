@@ -1,5 +1,7 @@
+import logger from '../../utils/logger.js';
+
 export const handleGeminiError = (err, fallbackMessage) => {
-  console.error('Gemini API Error:', err);
+  logger.error(`Gemini API Error: ${err.message || err}`, { stack: err.stack });
   const msg = err?.message || '';
   if (
     msg.includes('503') || 
