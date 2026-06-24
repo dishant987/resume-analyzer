@@ -1,16 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Skeleton } from '../components/ui/skeleton'
 import PageTransition from '../components/ui/page-transition'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   Loader2, AlertCircle, CheckCircle2,
-  Compass, ArrowLeft, ChevronRight, Bookmark, BookOpen, Layers, Trash2, Calendar, Video
+  Compass,  ChevronRight, Bookmark, BookOpen, Layers, Trash2, Calendar, Video
 } from 'lucide-react'
 import AnalysisNavigation from '../components/ui/analysis-navigation'
+import { ConfirmModal } from '../components/ui/confirm-modal'
+import { useResume, useRoadmaps, useGenerateRoadmap, useDeleteRoadmap } from '../lib/hooks/use-api'
 
 const Youtube = (props) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -18,159 +19,39 @@ const Youtube = (props) => (
   </svg>
 )
 
-function DeleteConfirmModal({ isOpen, onClose, onConfirm, targetRole, roadmapDate, isDeleting }) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-xs"
-          />
-
-          {/* Modal Container */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: 'spring', duration: 0.3 }}
-            className="relative bg-card border border-border w-full max-w-md rounded-2xl p-6 shadow-xl space-y-6 overflow-hidden z-10"
-          >
-            {/* Warning Icon & Title */}
-            <div className="flex gap-4">
-              <div className="h-10 w-10 shrink-0 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
-                <AlertCircle className="h-6 w-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-extrabold text-foreground tracking-tight">Delete Roadmap</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Are you sure you want to delete this career roadmap? This action cannot be undone.
-                </p>
-              </div>
-            </div>
-
-            {/* Details panel */}
-            <div className="p-3.5 bg-secondary/25 border border-border/60 rounded-xl space-y-1.5">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-muted-foreground">Target Role</span>
-                <span className="text-foreground font-bold">{targetRole}</span>
-              </div>
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-muted-foreground">Generated On</span>
-                <span className="text-foreground font-bold">{roadmapDate}</span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                variant="ghost"
-                onClick={onClose}
-                className="text-xs font-bold text-muted-foreground cursor-pointer"
-                disabled={isDeleting}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={onConfirm}
-                className="text-xs font-bold cursor-pointer"
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Deleting...
-                  </span>
-                ) : (
-                  'Confirm Delete'
-                )}
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  )
-}
-
 export default function Roadmap() {
   const { resumeId } = useParams()
   const navigate = useNavigate()
 
-  const [resume, setResume] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
   const [targetRole, setTargetRole] = useState('')
-  const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
-  const [roadmaps, setRoadmaps] = useState([])
   const [selectedRoadmap, setSelectedRoadmap] = useState(null)
   const [showNewForm, setShowNewForm] = useState(false)
   const [roadmapToDelete, setRoadmapToDelete] = useState(null)
-  const [deletingId, setDeletingId] = useState(null)
 
-  const loadData = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const [resResume, resRoadmap] = await Promise.all([
-        fetch(`/api/resumes/${resumeId}`, { credentials: 'include' }).then((r) => {
-          if (!r.ok) throw new Error('Failed to load resume details')
-          return r.json()
-        }),
-        fetch(`/api/resumes/${resumeId}/roadmap`, { credentials: 'include' }).then((r) => {
-          if (!r.ok) throw new Error('Failed to load roadmap data')
-          return r.json()
-        })
-      ])
-      setResume(resResume.resume)
-      if (resRoadmap.roadmaps) {
-        setRoadmaps(resRoadmap.roadmaps)
-        if (resRoadmap.roadmaps.length > 0) {
-          setSelectedRoadmap(resRoadmap.roadmaps[0])
-        }
-      }
-    } catch (err) {
-      setError(err.message || 'Something went wrong.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data: resumeData, isLoading: loading, error } = useResume(resumeId)
+  const { data: roadmapsData, isLoading: roadmapsLoading } = useRoadmaps(resumeId)
+  const generateMutation = useGenerateRoadmap()
+  const deleteMutation = useDeleteRoadmap()
 
-  useEffect(() => {
-    loadData()
-  }, [resumeId])
+  const resume = resumeData?.resume
+  const roadmaps = roadmapsData?.roadmaps || []
+  const generating = generateMutation.isPending
+  const deletingId = deleteMutation.variables?.roadmapId
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!targetRole.trim()) return
-    setGenerating(true)
     setGenError('')
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/roadmap`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetRole }),
-        credentials: 'include',
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.message || 'Roadmap generation failed. Please try again.')
-      }
-      const updated = [data.roadmap, ...roadmaps]
-      setRoadmaps(updated)
-      setSelectedRoadmap(data.roadmap)
-      setTargetRole('')
-      setShowNewForm(false)
-    } catch (err) {
-      setGenError(err.message)
-    } finally {
-      setGenerating(false)
-    }
+    generateMutation.mutate({ id: resumeId, targetRole: targetRole.trim() }, {
+      onSuccess: (data) => {
+        setSelectedRoadmap(data.roadmap)
+        setTargetRole('')
+        setShowNewForm(false)
+      },
+      onError: (err) => {
+        setGenError(err.message)
+      },
+    })
   }
 
   const promptDeleteRoadmap = (item, e) => {
@@ -178,32 +59,23 @@ export default function Roadmap() {
     setRoadmapToDelete(item)
   }
 
-  const handleConfirmDeleteRoadmap = async () => {
+  const handleConfirmDeleteRoadmap = () => {
     if (!roadmapToDelete) return
-    setDeletingId(roadmapToDelete._id)
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/roadmap/${roadmapToDelete._id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.message || 'Failed to delete roadmap')
+    deleteMutation.mutate(
+      { resumeId, roadmapId: roadmapToDelete._id },
+      {
+        onSuccess: () => {
+          if (selectedRoadmap?._id === roadmapToDelete._id) {
+            const remaining = roadmaps.filter(r => r._id !== roadmapToDelete._id)
+            setSelectedRoadmap(remaining[0] || null)
+          }
+          setRoadmapToDelete(null)
+        },
       }
-      const filtered = roadmaps.filter(r => r._id !== roadmapToDelete._id)
-      setRoadmaps(filtered)
-      if (selectedRoadmap?._id === roadmapToDelete._id) {
-        setSelectedRoadmap(filtered[0] || null)
-      }
-      setRoadmapToDelete(null)
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setDeletingId(null)
-    }
+    )
   }
 
-  if (loading) {
+  if (loading || roadmapsLoading) {
     return (
       <div className="w-full space-y-6 pt-4">
         <Skeleton className="h-4 w-32" />
@@ -222,7 +94,7 @@ export default function Roadmap() {
         <div className="text-center py-20 text-muted-foreground max-w-md mx-auto">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
           <p className="font-bold text-lg text-foreground mb-1">Error Loading Page</p>
-          <p className="text-sm">{error || 'Resume not found'}</p>
+          <p className="text-sm">{error?.message || 'Resume not found'}</p>
           <Button variant="outline" className="mt-6" onClick={() => navigate('/dashboard')}>
             Back to Dashboard
           </Button>
@@ -572,13 +444,15 @@ export default function Roadmap() {
         )}
       </div>
 
-      <DeleteConfirmModal
+      <ConfirmModal
         isOpen={roadmapToDelete !== null}
         onClose={() => setRoadmapToDelete(null)}
         onConfirm={handleConfirmDeleteRoadmap}
-        targetRole={roadmapToDelete?.targetRole || ''}
-        roadmapDate={roadmapToDelete ? new Date(roadmapToDelete.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
-        isDeleting={deletingId === roadmapToDelete?._id}
+        title="Delete Roadmap"
+        description={`Delete the career roadmap for ${roadmapToDelete?.targetRole || 'N/A'} (created on ${roadmapToDelete ? new Date(roadmapToDelete.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'})? This action cannot be undone.`}
+        confirmLabel="Confirm Delete"
+        confirmVariant="destructive"
+        isConfirming={deletingId === roadmapToDelete?._id}
       />
     </PageTransition>
   )

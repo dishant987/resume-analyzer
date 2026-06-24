@@ -5,16 +5,19 @@ import { Button } from '../components/ui/button'
 import { Progress } from '../components/ui/progress'
 import PageTransition from '../components/ui/page-transition'
 import { Upload as UploadIcon, FileText, CheckCircle, AlertCircle, X, ArrowLeft } from 'lucide-react'
+import { useUploadResume } from '../lib/hooks/use-api'
 
 export default function Upload() {
   const navigate = useNavigate()
   const inputRef = useRef()
   const [file, setFile] = useState(null)
   const [dragOver, setDragOver] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+
+  const uploadMutation = useUploadResume()
+  const uploading = uploadMutation.isPending
 
   const validate = (f) => {
     const name = f.name.toLowerCase()
@@ -44,9 +47,8 @@ export default function Upload() {
     if (f) handleFile(f)
   }
 
-  const handleUpload = async () => {
+  const handleUpload = () => {
     if (!file) return
-    setUploading(true)
     setError('')
     setProgress(0)
 
@@ -54,26 +56,18 @@ export default function Upload() {
       setProgress((p) => Math.min(p + 15, 85))
     }, 300)
 
-    try {
-      const form = new FormData()
-      form.append('resume', file)
-      const res = await fetch('/api/resumes/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      })
-      const data = await res.json()
-      clearInterval(interval)
-      if (!res.ok) throw new Error(data.message || 'Upload failed')
-      setProgress(100)
-      setSuccess(true)
-      setTimeout(() => navigate(`/analysis/${data.resume._id}`), 800)
-    } catch (err) {
-      clearInterval(interval)
-      setError(err.message)
-    } finally {
-      setUploading(false)
-    }
+    uploadMutation.mutate(file, {
+      onSuccess: (data) => {
+        clearInterval(interval)
+        setProgress(100)
+        setSuccess(true)
+        setTimeout(() => navigate(`/analysis/${data.resume._id}`), 800)
+      },
+      onError: (err) => {
+        clearInterval(interval)
+        setError(err.message)
+      },
+    })
   }
 
   return (

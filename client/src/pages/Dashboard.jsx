@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button'
@@ -15,7 +15,9 @@ import {
   ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line
 } from 'recharts'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
+import { ConfirmModal } from '../components/ui/confirm-modal'
+import { useResumeList, useResumeStats, useDeleteResume } from '../lib/hooks/use-api'
 
 const statusBadge = {
   uploaded: { label: 'Uploaded', variant: 'secondary' },
@@ -24,146 +26,35 @@ const statusBadge = {
   failed: { label: 'Failed', variant: 'destructive' },
 }
 
-function DeleteConfirmModal({ isOpen, onClose, onConfirm, resumeName, isDeleting }) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-xs"
-          />
-
-          {/* Modal Container */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: 'spring', duration: 0.3 }}
-            className="relative bg-card border border-border w-full max-w-md rounded-2xl p-6 shadow-xl space-y-6 overflow-hidden z-10"
-          >
-            {/* Warning Icon & Title */}
-            <div className="flex gap-4">
-              <div className="h-10 w-10 shrink-0 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
-                <AlertCircle className="h-6 w-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-lg font-bold text-foreground">Delete Resume?</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Are you sure you want to delete <span className="font-semibold text-foreground break-all">"{resumeName}"</span>?
-                  This action is permanent and all associated analytics data will be lost.
-                </p>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={onClose}
-                disabled={isDeleting}
-                className="rounded-full"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={onConfirm}
-                disabled={isDeleting}
-                className="rounded-full flex items-center gap-2"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete Permanently'
-                )}
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  )
-}
-
-
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [list, setList] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, limit: 10 })
-  const [deleting, setDeleting] = useState(null)
-
-  const [stats, setStats] = useState(null)
-  const [loadingStats, setLoadingStats] = useState(true)
   const [activeTab, setActiveTab] = useState('list')
+  const [resumeToDelete, setResumeToDelete] = useState(null)
 
-  const fetchResumes = () => {
-    setLoading(true)
-    const params = new URLSearchParams({ page, limit: '10' })
-    if (search.trim()) params.set('search', search.trim())
-    fetch(`/api/resumes?${params}`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data) => {
-        setList(data.resumes ?? [])
-        setPagination(data.pagination || { page: 1, pages: 1, total: 0, limit: 10 })
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
+  const { data: listData, isLoading } = useResumeList({ page, search })
+  const { data: stats, isLoading: loadingStats } = useResumeStats()
+  const deleteMutation = useDeleteResume()
 
-  const fetchStats = () => {
-    setLoadingStats(true)
-    fetch('/api/resumes/analytics/stats', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data) => {
-        setStats(data)
-      })
-      .catch(() => {})
-      .finally(() => setLoadingStats(false))
-  }
-
-  useEffect(() => {
-    fetchResumes()
-  }, [page])
-
-  useEffect(() => {
-    fetchStats()
-  }, [])
+  const list = listData?.resumes ?? []
+  const pagination = listData?.pagination || { page: 1, pages: 1, total: 0, limit: 10 }
 
   const handleSearch = (e) => {
     e.preventDefault()
     setPage(1)
-    fetchResumes()
   }
-
-  const [resumeToDelete, setResumeToDelete] = useState(null)
 
   const promptDelete = (resume, e) => {
     e.stopPropagation()
     setResumeToDelete(resume)
   }
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     if (!resumeToDelete) return
-    setDeleting(resumeToDelete._id)
-    try {
-      await fetch(`/api/resumes/${resumeToDelete._id}`, { method: 'DELETE', credentials: 'include' })
-      fetchResumes()
-      fetchStats()
-      setResumeToDelete(null)
-    } catch {} finally {
-      setDeleting(null)
-    }
+    deleteMutation.mutate(resumeToDelete._id, {
+      onSuccess: () => setResumeToDelete(null),
+    })
   }
 
   const scoreData = stats ? [
@@ -214,7 +105,7 @@ export default function Dashboard() {
             variant="ghost"
             size="sm"
             onClick={(e) => promptDelete(r, e)}
-            disabled={deleting === r._id}
+            disabled={deleteMutation.isPending && deleteMutation.variables === r._id}
             className="text-muted-foreground hover:text-destructive shrink-0 h-9 w-9 p-0 rounded-full"
             aria-label={`Delete ${r.originalFilename}`}
           >
@@ -335,7 +226,7 @@ export default function Dashboard() {
               />
             </form>
 
-            {loading ? (
+            {isLoading ? (
           <div className="grid grid-cols-1 gap-4">
             {[1, 2, 3].map((i) => (
               <Card key={i} className="shadow-xs"><CardContent className="p-5"><Skeleton className="h-12 w-full" /></CardContent></Card>
@@ -353,7 +244,7 @@ export default function Dashboard() {
               <p className="text-muted-foreground text-sm max-w-sm mb-6 leading-relaxed">
                 {search ? 'Try adjusting your search terms or filters.' : 'Upload your resume to get instant scores, keyword analysis, and layout checks.'}
               </p>
-              <Button onClick={() => { if (search) { setSearch(''); fetchResumes() } else { navigate('/upload') } }}>
+                  <Button onClick={() => { if (search) { setSearch(''); setPage(1) } else { navigate('/upload') } }}>
                 <Upload className="h-4.5 w-4.5" />
                 {search ? 'Clear search' : 'Upload resume'}
               </Button>
@@ -400,7 +291,7 @@ export default function Dashboard() {
                             variant="ghost"
                             size="icon"
                             onClick={(e) => promptDelete(r, e)}
-                            disabled={deleting === r._id}
+                            disabled={deleteMutation.isPending && deleteMutation.variables === r._id}
                             className="rounded-full h-9 w-9 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             title="Delete"
                           >
@@ -706,12 +597,15 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <DeleteConfirmModal
+      <ConfirmModal
         isOpen={resumeToDelete !== null}
         onClose={() => setResumeToDelete(null)}
         onConfirm={handleConfirmDelete}
-        resumeName={resumeToDelete?.originalFilename || ''}
-        isDeleting={deleting === resumeToDelete?._id}
+        title="Delete Resume?"
+        description={`Are you sure you want to delete "${resumeToDelete?.originalFilename || ''}"? This action is permanent and all associated analytics data will be lost.`}
+        confirmLabel="Delete Permanently"
+        confirmVariant="destructive"
+        isConfirming={deleteMutation.isPending}
       />
     </PageTransition>
   )

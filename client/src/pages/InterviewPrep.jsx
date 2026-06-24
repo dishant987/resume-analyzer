@@ -5,22 +5,17 @@ import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Skeleton } from '../components/ui/skeleton'
 import PageTransition, { stagger, staggerContainer } from '../components/ui/page-transition'
-import { motion, AnimatePresence } from 'framer-motion'
+
 import {
   Loader2, AlertCircle, MessageSquare, AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, BookOpen
 } from 'lucide-react'
 import AnalysisNavigation from '../components/ui/analysis-navigation'
+import { useResume, useInterviewPrep, useGenerateInterviewPrep } from '../lib/hooks/use-api'
 
 export default function InterviewPrep() {
   const { resumeId } = useParams()
   const navigate = useNavigate()
 
-  const [resume, setResume] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  const [prep, setPrep] = useState(null)
-  const [generating, setGenerating] = useState(false)
   const [prepError, setPrepError] = useState('')
   const [expandedIndex, setExpandedIndex] = useState(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -55,61 +50,37 @@ export default function InterviewPrep() {
     }
   }, [practicedKeys, resumeId])
 
-  const loadPageData = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const resumeRes = await fetch(`/api/resumes/${resumeId}`, { credentials: 'include' })
-      if (!resumeRes.ok) throw new Error('Failed to load resume details')
-      const resumeData = await resumeRes.json()
-      setResume(resumeData.resume)
+  const { data: resumeData, isLoading: loading, error } = useResume(resumeId)
+  const {
+    data: prepData,
+    isLoading: prepLoading,
+    error: prepError_,
+  } = useInterviewPrep(resumeId)
 
-      const prepRes = await fetch(`/api/resumes/${resumeId}/interview-prep`, { credentials: 'include' })
-      if (prepRes.ok) {
-        const prepData = await prepRes.json()
-        setPrep(prepData.prep)
-      }
-    } catch (err) {
-      setError(err.message || 'Something went wrong while loading page data.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const generateMutation = useGenerateInterviewPrep()
 
-  useEffect(() => {
-    loadPageData()
-  }, [resumeId])
+  const resume = resumeData?.resume
+  const prep = prepData?.prep || null
+  const generating = generateMutation.isPending
+  const loadingAll = loading || prepLoading
 
-  const handleGenerateQuestions = async (isRegen = false) => {
-    setGenerating(true)
+  const handleGenerateQuestions = (isRegen = false) => {
     setPrepError('')
-    try {
-      const endpoint = isRegen
-        ? `/api/resumes/${resumeId}/interview-prep/regenerate`
-        : `/api/resumes/${resumeId}/interview-prep`
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        credentials: 'include'
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to generate interview questions. Please try again.')
-      }
-      setPrep(data.prep)
-      setExpandedIndex(null) // Reset expanded
-    } catch (err) {
-      setPrepError(err.message)
-    } finally {
-      setGenerating(false)
-    }
+    generateMutation.mutate({ id: resumeId, isRegen }, {
+      onSuccess: () => {
+        setExpandedIndex(null)
+      },
+      onError: (err) => {
+        setPrepError(err.message)
+      },
+    })
   }
 
   const toggleQuestion = (idx) => {
     setExpandedIndex(expandedIndex === idx ? null : idx)
   }
 
-  if (loading) {
+  if (loadingAll && !error) {
     return (
       <div className="w-full space-y-6 pt-4">
         <Skeleton className="h-4 w-32" />
@@ -123,6 +94,21 @@ export default function InterviewPrep() {
           ))}
         </div>
       </div>
+    )
+  }
+
+  if (error || !resume) {
+    return (
+      <PageTransition>
+        <div className="text-center py-20 text-muted-foreground max-w-md mx-auto">
+          <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+          <p className="font-bold text-lg text-foreground mb-1">Resume not found</p>
+          <p className="text-sm">{error?.message || 'The document you are looking for does not exist or has been deleted.'}</p>
+          <Button variant="outline" className="mt-6" onClick={() => navigate('/dashboard')}>
+            Back to Dashboard
+          </Button>
+        </div>
+      </PageTransition>
     )
   }
 
@@ -320,7 +306,7 @@ export default function InterviewPrep() {
             </div>
           </div>
         ) : (
-          !loading && (
+          !loadingAll && (
             generating ? (
               <Card className="border border-border rounded-2xl p-12 text-center text-muted-foreground bg-secondary/5">
                 <Loader2 className="h-10 w-10 mx-auto mb-3 text-primary animate-spin" />

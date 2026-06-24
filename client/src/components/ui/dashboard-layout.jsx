@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth-context'
+import api from '../../lib/api'
 import { Sheet, SheetTrigger, SheetContent } from './sheet'
+import { ConfirmModal } from './confirm-modal'
 import ThemeToggle from './theme-toggle'
 import Logo from './logo'
 import {
@@ -24,6 +26,7 @@ export default function DashboardLayout() {
     return localStorage.getItem('sidebar-collapsed') === 'true'
   })
   const [activeResume, setActiveResume] = useState(null)
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
 
   // Extract active resume ID from URL path (matches /analysis/:resumeId or /editor/:resumeId)
   const analysisMatch = loc.pathname.match(/^\/(analysis|editor)\/([^/]+)/)
@@ -33,12 +36,8 @@ export default function DashboardLayout() {
     if (activeResumeId) {
       if (activeResume?._id === activeResumeId) return
 
-      fetch(`/api/resumes/${activeResumeId}`, { credentials: 'include' })
-        .then((res) => {
-          if (!res.ok) throw new Error('Failed to load resume details')
-          return res.json()
-        })
-        .then((data) => {
+      api.get(`/resumes/${activeResumeId}`)
+        .then(({ data }) => {
           if (data && data.resume) {
             setActiveResume(data.resume)
           }
@@ -215,7 +214,7 @@ export default function DashboardLayout() {
               </Link>
               <ThemeToggle />
               <button
-                onClick={logout}
+                onClick={() => setShowLogoutModal(true)}
                 className="flex items-center justify-center rounded-full h-10 w-10 text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
                 title="Logout"
               >
@@ -242,7 +241,7 @@ export default function DashboardLayout() {
               <div className="flex items-center justify-between pt-2 border-t border-border/40">
                 <ThemeToggle />
                 <button
-                  onClick={logout}
+                  onClick={() => setShowLogoutModal(true)}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
                   title="Logout"
                 >
@@ -308,7 +307,7 @@ export default function DashboardLayout() {
               <div className="flex items-center justify-between pt-2 border-t border-border/40">
                 <ThemeToggle />
                 <button
-                  onClick={logout}
+                  onClick={() => setShowLogoutModal(true)}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
                   title="Logout"
                 >
@@ -384,6 +383,20 @@ export default function DashboardLayout() {
           })}
         </nav>
       </div>
+
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={async () => {
+          await logout()
+          setShowLogoutModal(false)
+          navigate('/')
+        }}
+        title="Log out of ResuLens?"
+        description="You will be returned to the login page and need to sign in again to access your resumes and analyses."
+        confirmLabel="Log out"
+        confirmVariant="destructive"
+      />
     </div>
   )
 }

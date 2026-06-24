@@ -10,6 +10,7 @@ import {
   Loader2, Check, X, ArrowLeft, Download, Save,
   AlignLeft, Briefcase, FolderGit2, Wrench, GraduationCap, Edit3, Trash2
 } from 'lucide-react'
+import { useResume, useVersions, useFixResume, useSaveVersion } from '../lib/hooks/use-api'
 
 const sections = [
   { key: 'summary', label: 'Summary', icon: AlignLeft },
@@ -22,16 +23,35 @@ const sections = [
 export default function Editor() {
   const { resumeId } = useParams()
   const navigate = useNavigate()
-  const [resume, setResume] = useState(null)
-  const [analysis, setAnalysis] = useState(null)
   const [improvement, setImprovement] = useState(null)
   const [version, setVersion] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [fixing, setFixing] = useState(false)
   const [accepted, setAccepted] = useState({})
-  const [saving, setSaving] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [editing, setEditing] = useState({})
+
+  const { data: resumeData, isLoading: loading } = useResume(resumeId)
+  const { data: versionsData } = useVersions(resumeId)
+  const fixMutation = useFixResume()
+  const saveMutation = useSaveVersion()
+  const saving = saveMutation.isPending
+
+  const resume = resumeData?.resume
+
+  useEffect(() => {
+    const v = versionsData?.versions?.[0]
+    if (v && !improvement) {
+      setVersion(v)
+      setImprovement({
+        summary: v.content.summary,
+        experience: splitLines(v.content.experience),
+        projects: splitLines(v.content.projects),
+        skills: v.content.skills.split(', '),
+        education: v.content.education,
+      })
+    }
+  }, [versionsData])
+
+  const splitLines = (text) => text?.split('\n\n').filter(Boolean) || []
 
   const getSectionTextForEditing = (key) => {
     const content = improvement?.[key]
@@ -68,50 +88,16 @@ export default function Editor() {
     }))
   }
 
-  useEffect(() => {
-    Promise.all([
-      fetch(`/api/resumes/${resumeId}`, { credentials: 'include' }).then((r) => r.json()),
-      fetch(`/api/resumes/${resumeId}/analysis`, { credentials: 'include' }).then((r) => r.json()),
-      fetch(`/api/resumes/${resumeId}/versions`, { credentials: 'include' }).then((r) => r.json()),
-    ])
-      .then(([resumeData, analysisData, versionsData]) => {
-        setResume(resumeData.resume)
-        setAnalysis(analysisData.analysis)
-        const v = versionsData.versions?.[0]
-        if (v) {
-          setVersion(v)
-          setImprovement({
-            summary: v.content.summary,
-            experience: splitLines(v.content.experience),
-            projects: splitLines(v.content.projects),
-            skills: v.content.skills.split(', '),
-            education: v.content.education,
-          })
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [resumeId])
-
-  const splitLines = (text) => text?.split('\n\n').filter(Boolean) || []
-
-  const handleFix = async () => {
-    setFixing(true)
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/fix`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message || 'Fix failed')
-      setImprovement(data.improvement)
-      setVersion(data.version)
-      const all = {}
-      Object.keys(data.improvement).forEach((k) => { all[k] = true })
-      setAccepted(all)
-    } catch {} finally {
-      setFixing(false)
-    }
+  const handleFix = () => {
+    fixMutation.mutate(resumeId, {
+      onSuccess: (data) => {
+        setImprovement(data.improvement)
+        setVersion(data.version)
+        const all = {}
+        Object.keys(data.improvement).forEach((k) => { all[k] = true })
+        setAccepted(all)
+      },
+    })
   }
 
   const toggleAccept = (section) => {
@@ -123,49 +109,41 @@ export default function Editor() {
   }
 
   const handleSave = async () => {
-    setSaving(true)
-    try {
-      const content = {}
-      sections.forEach(({ key }) => {
-        const isAccepted = accepted[key]
-        if (!isAccepted) {
-          if (key === 'skills') {
-            content[key] = resume?.rawText?.split('Skills').pop()?.slice(0, 200) || ''
-          } else if (key === 'experience' || key === 'projects') {
-            const items = improvement?.[key]
-            if (Array.isArray(items)) {
-              content[key] = items.map(item => typeof item === 'string' ? item : item.original).join('\n\n')
-            } else {
-              content[key] = ''
-            }
-          } else if (key === 'summary') {
-            content[key] = resume?.rawText?.slice(0, 300) || ''
+    const content = {}
+    sections.forEach(({ key }) => {
+      const isAccepted = accepted[key]
+      if (!isAccepted) {
+        if (key === 'skills') {
+          content[key] = resume?.rawText?.split('Skills').pop()?.slice(0, 200) || ''
+        } else if (key === 'experience' || key === 'projects') {
+          const items = improvement?.[key]
+          if (Array.isArray(items)) {
+            content[key] = items.map(item => typeof item === 'string' ? item : item.original).join('\n\n')
           } else {
             content[key] = ''
           }
+        } else if (key === 'summary') {
+          content[key] = resume?.rawText?.slice(0, 300) || ''
         } else {
-          if (key === 'skills') {
-            content[key] = improvement?.skills?.join(', ') || ''
-          } else if (key === 'experience' || key === 'projects') {
-            const items = improvement?.[key]
-            content[key] = Array.isArray(items)
-              ? items.map((i) => (typeof i === 'string' ? i : i.improved)).join('\n\n')
-              : items || ''
-          } else {
-            content[key] = improvement?.[key] || ''
-          }
+          content[key] = ''
         }
-      })
-      await fetch(`/api/resumes/${resumeId}/versions`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, source: 'user_edited', versionNumber: (version?.versionNumber || 0) + 1 }),
-      })
+      } else {
+        if (key === 'skills') {
+          content[key] = improvement?.skills?.join(', ') || ''
+        } else if (key === 'experience' || key === 'projects') {
+          const items = improvement?.[key]
+          content[key] = Array.isArray(items)
+            ? items.map((i) => (typeof i === 'string' ? i : i.improved)).join('\n\n')
+            : items || ''
+        } else {
+          content[key] = improvement?.[key] || ''
+        }
+      }
+    })
+    try {
+      await saveMutation.mutateAsync({ id: resumeId, content, source: 'user_edited', versionNumber: (version?.versionNumber || 0) + 1 })
       navigate(`/analysis/${resumeId}`)
-    } catch {} finally {
-      setSaving(false)
-    }
+    } catch {}
   }
 
   const renderContent = (key, content) => {
@@ -345,8 +323,8 @@ export default function Editor() {
           
           {!improvement && (
             <div className="flex gap-2">
-              <Button onClick={handleFix} disabled={fixing} size="lg" className="w-full sm:w-auto shadow-md shadow-primary/15">
-                {fixing ? (
+              <Button onClick={handleFix} disabled={fixMutation.isPending} size="lg" className="w-full sm:w-auto shadow-md shadow-primary/15">
+                {fixMutation.isPending ? (
                   <><Loader2 className="h-4.5 w-4.5 animate-spin" /> Rewriting sections...</>
                 ) : (
                   <><Edit3 className="h-4.5 w-4.5" /> Run AI Rewriter</>
@@ -368,8 +346,8 @@ export default function Editor() {
               <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6">
                 Our model will rewrite your summary, experience points, education headers, and project details to ensure high keyword match density.
               </p>
-              <Button onClick={handleFix} disabled={fixing} size="lg">
-                {fixing ? (
+              <Button onClick={handleFix} disabled={fixMutation.isPending} size="lg">
+                {fixMutation.isPending ? (
                   <><Loader2 className="h-4.5 w-4.5 animate-spin" /> Improving...</>
                 ) : (
                   <><Edit3 className="h-4.5 w-4.5" /> Fix My Resume</>

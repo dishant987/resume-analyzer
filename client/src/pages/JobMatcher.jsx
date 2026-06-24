@@ -1,159 +1,49 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Skeleton } from '../components/ui/skeleton'
 import PageTransition from '../components/ui/page-transition'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Loader2, AlertCircle, Briefcase, Trash2, Calendar, ChevronRight, ChevronDown, CheckCircle2, XCircle, ArrowLeft
+  Loader2, AlertCircle, Briefcase, Trash2, Calendar
 } from 'lucide-react'
 import AnalysisNavigation from '../components/ui/analysis-navigation'
-
-function DeleteConfirmModal({ isOpen, onClose, onConfirm, matchPercent, matchDate, isDeleting }) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-xs"
-          />
-
-          {/* Modal Container */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: 'spring', duration: 0.3 }}
-            className="relative bg-card border border-border w-full max-w-md rounded-2xl p-6 shadow-xl space-y-6 overflow-hidden z-10"
-          >
-            {/* Warning Icon & Title */}
-            <div className="flex gap-4">
-              <div className="h-10 w-10 shrink-0 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
-                <AlertCircle className="h-6 w-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-lg font-bold text-foreground">Delete Match Result?</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Are you sure you want to delete the compatibility match run with a score of <span className="font-semibold text-foreground">{matchPercent}%</span> from <span className="font-semibold text-foreground">{matchDate}</span>?
-                  This action is permanent and cannot be undone.
-                </p>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={onClose}
-                disabled={isDeleting}
-                className="rounded-full"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={onConfirm}
-                disabled={isDeleting}
-                className="rounded-full flex items-center gap-2"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete Permanently'
-                )}
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  )
-}
+import { ConfirmModal } from '../components/ui/confirm-modal'
+import { useResume, useMatches, useMatchJob, useDeleteMatch } from '../lib/hooks/use-api'
 
 export default function JobMatcher() {
   const { resumeId } = useParams()
   const navigate = useNavigate()
 
-  const [resume, setResume] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
   const [jd, setJd] = useState('')
-  const [matching, setMatching] = useState(false)
   const [matchError, setMatchError] = useState('')
-
-  const [matches, setMatches] = useState([])
   const [selectedMatch, setSelectedMatch] = useState(null)
-  const [deletingId, setDeletingId] = useState(null)
   const [matchToDelete, setMatchToDelete] = useState(null)
 
-  const loadPageData = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const [resumeRes, matchesRes] = await Promise.all([
-        fetch(`/api/resumes/${resumeId}`, { credentials: 'include' }).then(r => {
-          if (!r.ok) throw new Error('Failed to load resume details')
-          return r.json()
-        }),
-        fetch(`/api/resumes/${resumeId}/matches`, { credentials: 'include' }).then(r => {
-          if (!r.ok) throw new Error('Failed to load match history')
-          return r.json()
-        })
-      ])
+  const { data: resumeData, isLoading: loading, error } = useResume(resumeId)
+  const { data: matchesData, isLoading: matchesLoading } = useMatches(resumeId)
+  const matchJobMutation = useMatchJob()
+  const deleteMatchMutation = useDeleteMatch()
 
-      setResume(resumeRes.resume)
-      setMatches(matchesRes.matches || [])
-      if (matchesRes.matches?.length > 0) {
-        setSelectedMatch(matchesRes.matches[0])
-      }
-    } catch (err) {
-      setError(err.message || 'Something went wrong while loading data.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const resume = resumeData?.resume
+  const matches = matchesData?.matches || []
+  const matching = matchJobMutation.isPending
+  const deletingId = deleteMatchMutation.variables?.matchId
 
-  useEffect(() => {
-    loadPageData()
-  }, [resumeId])
-
-  const handleMatchJd = async () => {
+  const handleMatchJd = () => {
     if (!jd.trim()) return
-    setMatching(true)
     setMatchError('')
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/match-jd`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jd }),
-        credentials: 'include',
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.message || 'Matching failed. Please check your network or try a different job description.')
-      }
-
-      // Update match list and select the new one
-      const updatedMatches = [data.match, ...matches]
-      setMatches(updatedMatches)
-      setSelectedMatch(data.match)
-      setJd('') // Clear input
-    } catch (err) {
-      setMatchError(err.message)
-    } finally {
-      setMatching(false)
-    }
+    matchJobMutation.mutate({ id: resumeId, jd: jd.trim() }, {
+      onSuccess: (data) => {
+        setSelectedMatch(data.match)
+        setJd('')
+      },
+      onError: (err) => {
+        setMatchError(err.message)
+      },
+    })
   }
 
   const promptDeleteMatch = (matchItem, e) => {
@@ -161,30 +51,20 @@ export default function JobMatcher() {
     setMatchToDelete(matchItem)
   }
 
-  const handleConfirmDeleteMatch = async () => {
+  const handleConfirmDeleteMatch = () => {
     if (!matchToDelete) return
-    setDeletingId(matchToDelete._id)
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/matches/${matchToDelete._id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.message || 'Failed to delete match result')
+    deleteMatchMutation.mutate(
+      { resumeId, matchId: matchToDelete._id },
+      {
+        onSuccess: () => {
+          if (selectedMatch?._id === matchToDelete._id) {
+            const remaining = matches.filter(m => m._id !== matchToDelete._id)
+            setSelectedMatch(remaining[0] || null)
+          }
+          setMatchToDelete(null)
+        },
       }
-
-      const filtered = matches.filter(m => m._id !== matchToDelete._id)
-      setMatches(filtered)
-      if (selectedMatch?._id === matchToDelete._id) {
-        setSelectedMatch(filtered[0] || null)
-      }
-      setMatchToDelete(null)
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setDeletingId(null)
-    }
+    )
   }
 
   if (loading) {
@@ -206,7 +86,7 @@ export default function JobMatcher() {
         <div className="text-center py-20 text-muted-foreground max-w-md mx-auto">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
           <p className="font-bold text-lg text-foreground mb-1">Error Loading Page</p>
-          <p className="text-sm">{error || 'Resume not found'}</p>
+          <p className="text-sm">{error?.message || 'Resume not found'}</p>
           <Button variant="outline" className="mt-6" onClick={() => navigate('/dashboard')}>
             Back to Dashboard
           </Button>
@@ -452,13 +332,15 @@ export default function JobMatcher() {
         </div>
       </div>
 
-      <DeleteConfirmModal
+      <ConfirmModal
         isOpen={matchToDelete !== null}
         onClose={() => setMatchToDelete(null)}
         onConfirm={handleConfirmDeleteMatch}
-        matchPercent={matchToDelete ? Math.round(matchToDelete.matchPercentage) : 0}
-        matchDate={matchToDelete ? new Date(matchToDelete.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
-        isDeleting={deletingId === matchToDelete?._id}
+        title="Delete Match Result?"
+        description={`Are you sure you want to delete the compatibility match run with a score of ${matchToDelete ? Math.round(matchToDelete.matchPercentage) : 0}% from ${matchToDelete ? new Date(matchToDelete.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}? This action is permanent and cannot be undone.`}
+        confirmLabel="Delete Permanently"
+        confirmVariant="destructive"
+        isConfirming={deletingId === matchToDelete?._id}
       />
     </PageTransition>
   )

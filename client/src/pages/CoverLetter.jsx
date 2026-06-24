@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
@@ -6,154 +6,45 @@ import { Skeleton } from '../components/ui/skeleton'
 import PageTransition from '../components/ui/page-transition'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Loader2, AlertCircle, Mail, Trash2, Calendar, Copy, Check, FileDown, ArrowLeft
+  Loader2, AlertCircle, Mail, Trash2, Calendar, Copy, Check, FileDown
 } from 'lucide-react'
 import AnalysisNavigation from '../components/ui/analysis-navigation'
-
-function DeleteConfirmModal({ isOpen, onClose, onConfirm, clDate, isDeleting }) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-xs"
-          />
-
-          {/* Modal Container */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: 'spring', duration: 0.3 }}
-            className="relative bg-card border border-border w-full max-w-md rounded-2xl p-6 shadow-xl space-y-6 overflow-hidden z-10"
-          >
-            {/* Warning Icon & Title */}
-            <div className="flex gap-4">
-              <div className="h-10 w-10 shrink-0 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
-                <AlertCircle className="h-6 w-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-lg font-bold text-foreground">Delete Cover Letter?</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Are you sure you want to delete the cover letter created on <span className="font-semibold text-foreground">{clDate}</span>?
-                  This action is permanent and cannot be undone.
-                </p>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={onClose}
-                disabled={isDeleting}
-                className="rounded-full"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={onConfirm}
-                disabled={isDeleting}
-                className="rounded-full flex items-center gap-2"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete Permanently'
-                )}
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  )
-}
+import { ConfirmModal } from '../components/ui/confirm-modal'
+import { useResume, useCoverLetters, useGenerateCoverLetter, useDeleteCoverLetter } from '../lib/hooks/use-api'
 
 export default function CoverLetter() {
   const { resumeId } = useParams()
   const navigate = useNavigate()
 
-  const [resume, setResume] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
   const [jd, setJd] = useState('')
-  const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
-
-  const [letters, setLetters] = useState([])
   const [selectedLetter, setSelectedLetter] = useState(null)
   const [copied, setCopied] = useState(false)
-  const [deletingId, setDeletingId] = useState(null)
   const [fontStyle, setFontStyle] = useState('serif')
   const [letterToDelete, setLetterToDelete] = useState(null)
 
-  const loadPageData = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const [resumeRes, lettersRes] = await Promise.all([
-        fetch(`/api/resumes/${resumeId}`, { credentials: 'include' }).then(r => {
-          if (!r.ok) throw new Error('Failed to load resume details')
-          return r.json()
-        }),
-        fetch(`/api/resumes/${resumeId}/cover-letters`, { credentials: 'include' }).then(r => {
-          if (!r.ok) throw new Error('Failed to load cover letters')
-          return r.json()
-        })
-      ])
+  const { data: resumeData, isLoading: loading, error } = useResume(resumeId)
+  const { data: lettersData } = useCoverLetters(resumeId)
+  const generateMutation = useGenerateCoverLetter()
+  const deleteMutation = useDeleteCoverLetter()
 
-      setResume(resumeRes.resume)
-      setLetters(lettersRes.coverLetters || [])
-      if (lettersRes.coverLetters?.length > 0) {
-        setSelectedLetter(lettersRes.coverLetters[0])
-      }
-    } catch (err) {
-      setError(err.message || 'Something went wrong while loading data.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const resume = resumeData?.resume
+  const letters = lettersData?.coverLetters || []
+  const generating = generateMutation.isPending
+  const deletingId = deleteMutation.variables?.letterId
 
-  useEffect(() => {
-    loadPageData()
-  }, [resumeId])
-
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!jd.trim()) return
-    setGenerating(true)
     setGenError('')
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/cover-letter`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jd }),
-        credentials: 'include',
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to generate cover letter. Try again with a different description.')
-      }
-
-      const updatedLetters = [data.coverLetter, ...letters]
-      setLetters(updatedLetters)
-      setSelectedLetter(data.coverLetter)
-      setJd('') // Clear input
-    } catch (err) {
-      setGenError(err.message)
-    } finally {
-      setGenerating(false)
-    }
+    generateMutation.mutate({ id: resumeId, jd: jd.trim() }, {
+      onSuccess: (data) => {
+        setSelectedLetter(data.coverLetter)
+        setJd('')
+      },
+      onError: (err) => {
+        setGenError(err.message)
+      },
+    })
   }
 
   const promptDeleteLetter = (letterItem, e) => {
@@ -161,30 +52,20 @@ export default function CoverLetter() {
     setLetterToDelete(letterItem)
   }
 
-  const handleConfirmDeleteLetter = async () => {
+  const handleConfirmDeleteLetter = () => {
     if (!letterToDelete) return
-    setDeletingId(letterToDelete._id)
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/cover-letters/${letterToDelete._id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.message || 'Failed to delete cover letter')
+    deleteMutation.mutate(
+      { resumeId, letterId: letterToDelete._id },
+      {
+        onSuccess: () => {
+          if (selectedLetter?._id === letterToDelete._id) {
+            const remaining = letters.filter(l => l._id !== letterToDelete._id)
+            setSelectedLetter(remaining[0] || null)
+          }
+          setLetterToDelete(null)
+        },
       }
-
-      const filtered = letters.filter(l => l._id !== letterToDelete._id)
-      setLetters(filtered)
-      if (selectedLetter?._id === letterToDelete._id) {
-        setSelectedLetter(filtered[0] || null)
-      }
-      setLetterToDelete(null)
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setDeletingId(null)
-    }
+    )
   }
 
   const handleCopy = () => {
@@ -224,7 +105,7 @@ export default function CoverLetter() {
         <div className="text-center py-20 text-muted-foreground max-w-md mx-auto">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
           <p className="font-bold text-lg text-foreground mb-1">Error Loading Page</p>
-          <p className="text-sm">{error || 'Resume not found'}</p>
+          <p className="text-sm">{error?.message || 'Resume not found'}</p>
           <Button variant="outline" className="mt-6" onClick={() => navigate('/dashboard')}>
             Back to Dashboard
           </Button>
@@ -442,12 +323,15 @@ export default function CoverLetter() {
         </div>
       </div>
 
-      <DeleteConfirmModal
+      <ConfirmModal
         isOpen={letterToDelete !== null}
         onClose={() => setLetterToDelete(null)}
         onConfirm={handleConfirmDeleteLetter}
-        clDate={letterToDelete ? new Date(letterToDelete.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
-        isDeleting={deletingId === letterToDelete?._id}
+        title="Delete Cover Letter?"
+        description={`Are you sure you want to delete the cover letter created on ${letterToDelete ? new Date(letterToDelete.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''}? This action is permanent and cannot be undone.`}
+        confirmLabel="Delete Permanently"
+        confirmVariant="destructive"
+        isConfirming={deletingId === letterToDelete?._id}
       />
     </PageTransition>
   )

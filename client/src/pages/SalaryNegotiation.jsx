@@ -10,93 +10,61 @@ import {
   Loader2, AlertCircle, Coins, ArrowLeft, Send, User, Bot, HelpCircle, Briefcase, Trash2, Maximize2, Minimize2
 } from 'lucide-react'
 import AnalysisNavigation from '../components/ui/analysis-navigation'
+import { useResume, useNegotiations, useCreateNegotiation, useSendChat, useDeleteNegotiation } from '../lib/hooks/use-api'
 
 export default function SalaryNegotiation() {
   const { resumeId } = useParams()
   const navigate = useNavigate()
   const chatEndRef = useRef(null)
 
-  const [resume, setResume] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
   // Form inputs for starting session
   const [jobTitle, setJobTitle] = useState('')
   const [company, setCompany] = useState('')
   const [location, setLocation] = useState('')
-  const [initializing, setInitializing] = useState(false)
   const [initError, setInitError] = useState('')
 
   // Active negotiation session
-  const [negotiations, setNegotiations] = useState([])
   const [activeSession, setActiveSession] = useState(null)
-  const [sending, setSending] = useState(false)
   const [userInput, setUserInput] = useState('')
   const [chatError, setChatError] = useState('')
-  const [deletingId, setDeletingId] = useState(null)
   const [isChatFullscreen, setIsChatFullscreen] = useState(false)
 
-  const loadPageData = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const [resumeRes, negRes] = await Promise.all([
-        fetch(`/api/resumes/${resumeId}`, { credentials: 'include' }).then((r) => {
-          if (!r.ok) throw new Error('Failed to load resume details')
-          return r.json()
-        }),
-        fetch(`/api/resumes/${resumeId}/salary-negotiations`, { credentials: 'include' }).then((r) => {
-          if (!r.ok) throw new Error('Failed to load negotiations history')
-          return r.json()
-        })
-      ])
-      setResume(resumeRes.resume)
-      setNegotiations(negRes.negotiations || [])
-      if (negRes.negotiations?.length > 0) {
-        setActiveSession(negRes.negotiations[0])
-      }
-    } catch (err) {
-      setError(err.message || 'Something went wrong.')
-    } finally {
-      setLoading(false)
+  const { data: resumeData, isLoading: loading, error } = useResume(resumeId)
+  const { data: negosData, isLoading: negLoading } = useNegotiations(resumeId)
+  const createMutation = useCreateNegotiation()
+  const sendMutation = useSendChat()
+  const deleteMutation = useDeleteNegotiation()
+
+  const resume = resumeData?.resume
+  const negotiations = negosData?.negotiations || []
+  const initializing = createMutation.isPending
+  const sending = sendMutation.isPending
+  const deletingId = deleteMutation.variables?.negId
+
+  useEffect(() => {
+    if (negosData?.negotiations?.length > 0 && !activeSession) {
+      setActiveSession(negosData.negotiations[0])
     }
-  }
+  }, [negosData])
 
   useEffect(() => {
-    loadPageData()
-  }, [resumeId])
-
-  useEffect(() => {
-    // Scroll chat to bottom when chat history changes
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeSession?.chatHistory])
 
-  const handleStartNegotiation = async () => {
+  const handleStartNegotiation = () => {
     if (!jobTitle.trim()) return
-    setInitializing(true)
     setInitError('')
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/salary-negotiations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobTitle, company, location }),
-        credentials: 'include',
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.message || 'Initialization failed.')
-      }
-      setActiveSession(data.negotiation)
-      setNegotiations([data.negotiation, ...negotiations])
-      // Reset inputs
-      setJobTitle('')
-      setCompany('')
-      setLocation('')
-    } catch (err) {
-      setInitError(err.message)
-    } finally {
-      setInitializing(false)
-    }
+    createMutation.mutate({ id: resumeId, jobTitle, company, location }, {
+      onSuccess: (data) => {
+        setActiveSession(data.negotiation)
+        setJobTitle('')
+        setCompany('')
+        setLocation('')
+      },
+      onError: (err) => {
+        setInitError(err.message)
+      },
+    })
   }
 
   const handleSendMessage = async (e) => {
@@ -105,7 +73,6 @@ export default function SalaryNegotiation() {
 
     const messageToSend = userInput.trim()
     setUserInput('')
-    setSending(true)
     setChatError('')
 
     // Optimistically update chat history for user message
@@ -114,51 +81,30 @@ export default function SalaryNegotiation() {
       chatHistory: [...prev.chatHistory, { role: 'user', message: messageToSend }]
     }))
 
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/salary-negotiations/${activeSession._id}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageToSend }),
-        credentials: 'include',
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to send message.')
+    sendMutation.mutate(
+      { resumeId, sessionId: activeSession._id, message: messageToSend },
+      {
+        onSuccess: (data) => {
+          setActiveSession(data.negotiation)
+        },
+        onError: (err) => {
+          setChatError(err.message)
+        },
       }
-      setActiveSession(data.negotiation)
-
-      // Update history in list
-      setNegotiations(prev => prev.map(n => n._id === data.negotiation._id ? data.negotiation : n))
-    } catch (err) {
-      setChatError(err.message)
-    } finally {
-      setSending(false)
-    }
+    )
   }
 
-  const handleDeleteSession = async (negId, e) => {
+  const handleDeleteSession = (negId, e) => {
     e.stopPropagation()
     if (deletingId) return
-    setDeletingId(negId)
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/salary-negotiations/${negId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.message || 'Failed to delete session')
-      }
-      const filtered = negotiations.filter(n => n._id !== negId)
-      setNegotiations(filtered)
-      if (activeSession?._id === negId) {
-        setActiveSession(filtered[0] || null)
-      }
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate({ resumeId, negId }, {
+      onSuccess: () => {
+        if (activeSession?._id === negId) {
+          const remaining = negotiations.filter(n => n._id !== negId)
+          setActiveSession(remaining[0] || null)
+        }
+      },
+    })
   }
 
   // Helper to extract the latest assistant message coach feedback
@@ -202,7 +148,7 @@ export default function SalaryNegotiation() {
     }
   }
 
-  if (loading) {
+  if (loading || negLoading) {
     return (
       <div className="w-full space-y-6 pt-4">
         <Skeleton className="h-4 w-32" />
@@ -221,7 +167,7 @@ export default function SalaryNegotiation() {
         <div className="text-center py-20 text-muted-foreground max-w-md mx-auto">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
           <p className="font-bold text-lg text-foreground mb-1">Error Loading Page</p>
-          <p className="text-sm">{error || 'Resume not found'}</p>
+          <p className="text-sm">{error?.message || 'Resume not found'}</p>
           <Button variant="outline" className="mt-6" onClick={() => navigate('/dashboard')}>
             Back to Dashboard
           </Button>

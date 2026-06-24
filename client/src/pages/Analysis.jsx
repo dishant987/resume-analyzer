@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
@@ -11,6 +11,7 @@ import {
   Briefcase, Mail, MessageSquare, ArrowRight, Compass, Coins
 } from 'lucide-react'
 import AnalysisNavigation from '../components/ui/analysis-navigation'
+import { useResume, useAnalysis, useAnalyzeResume } from '../lib/hooks/use-api'
 
 const severityBadge = {
   low: { label: 'Low Severity', variant: 'secondary' },
@@ -83,52 +84,14 @@ function ScoreCard({ label, value }) {
 export default function Analysis() {
   const { resumeId } = useParams()
   const navigate = useNavigate()
-  const [analysis, setAnalysis] = useState(null)
-  const [resume, setResume] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [error, setError] = useState('')
 
-  const load = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const [resumeRes, analysisRes] = await Promise.all([
-        fetch(`/api/resumes/${resumeId}`, { credentials: 'include' }).then((r) => {
-          if (!r.ok) throw new Error('Failed to load resume details')
-          return r.json()
-        }),
-        fetch(`/api/resumes/${resumeId}/analysis`, { credentials: 'include' }).then((r) => r.json()),
-      ])
-      setResume(resumeRes.resume)
-      if (analysisRes.analysis) setAnalysis(analysisRes.analysis)
-    } catch (err) {
-      setError(err.message || 'Failed to load analysis data.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data: resumeData, isLoading: loading, error } = useResume(resumeId)
+  const { data: analysisData } = useAnalysis(resumeId)
+  const analyzeMutation = useAnalyzeResume()
 
-  useEffect(() => { load() }, [resumeId])
-
-  const handleAnalyze = async () => {
-    setAnalyzing(true)
-    setError('')
-    try {
-      const res = await fetch(`/api/resumes/${resumeId}/analyze`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.message || 'Analysis failed')
-      setAnalysis(data.analysis)
-      setResume(prev => prev ? { ...prev, status: 'analyzed' } : null)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setAnalyzing(false)
-    }
-  }
+  const resume = resumeData?.resume
+  const analysis = analysisData?.analysis
+  const analyzing = analyzeMutation.isPending
 
   if (loading) {
     return (
@@ -154,7 +117,7 @@ export default function Analysis() {
         <div className="text-center py-20 text-muted-foreground max-w-md mx-auto">
           <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
           <p className="font-bold text-lg text-foreground mb-1">Resume not found</p>
-          <p className="text-sm">{error || 'The document you are looking for does not exist or has been deleted.'}</p>
+          <p className="text-sm">{error?.message || 'The document you are looking for does not exist or has been deleted.'}</p>
           <Button variant="outline" className="mt-6" onClick={() => navigate('/dashboard')}>
             Back to Dashboard
           </Button>
@@ -171,7 +134,7 @@ export default function Analysis() {
           resume={resume}
           resumeId={resumeId}
           activeTab="audit"
-          onAnalyze={handleAnalyze}
+          onAnalyze={() => analyzeMutation.mutate(resumeId)}
           analyzing={analyzing}
         />
 
@@ -488,7 +451,7 @@ export default function Analysis() {
                 <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-6">
                   Your resume file has been successfully uploaded and is ready for scoring. Let AI analyze it across key categories.
                 </p>
-                <Button onClick={handleAnalyze} disabled={analyzing} size="lg">
+                <Button onClick={() => analyzeMutation.mutate(resumeId)} disabled={analyzing} size="lg">
                   {analyzing ? (
                     <><Loader2 className="h-4.5 w-4.5 animate-spin" /> Analyzing...</>
                   ) : (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, FileText, ArrowRight, CheckCircle2, ShieldCheck, Zap, Star, AlertTriangle, RefreshCw } from 'lucide-react'
@@ -180,13 +180,13 @@ export default function Landing() {
           <motion.div
             key={idx}
             initial={{ opacity: 0.2, y: 0 }}
-            animate={{ 
-              opacity: [0.2, 0.5, 0.2], 
-              y: [-12, 12, -12] 
+            animate={{
+              opacity: [0.2, 0.5, 0.2],
+              y: [-12, 12, -12]
             }}
-            transition={{ 
-              duration: 6, 
-              repeat: Infinity, 
+            transition={{
+              duration: 6,
+              repeat: Infinity,
               ease: "easeInOut",
               delay: item.delay
             }}
@@ -206,7 +206,7 @@ export default function Landing() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4 }}
           >
-            <span 
+            <span
               className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-xs font-bold text-primary mb-8 shadow-xs hover:border-primary/30 transition-colors"
               style={{ backgroundColor: 'color-mix(in srgb, var(--card) 60%, transparent)' }}
             >
@@ -275,8 +275,8 @@ export default function Landing() {
             <button
               onClick={() => { setIsOptimized(false); setIsScanning(false) }}
               className={`px-5 py-2.5 rounded-full text-xs font-bold tracking-wide transition-all cursor-pointer ${!isOptimized && !isScanning
-                  ? 'bg-card text-foreground shadow-sm border border-border/20 scale-105'
-                  : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-card text-foreground shadow-sm border border-border/20 scale-105'
+                : 'text-muted-foreground hover:text-foreground'
                 }`}
             >
               Original Resume
@@ -284,8 +284,8 @@ export default function Landing() {
             <button
               onClick={() => { setIsOptimized(true); setIsScanning(false) }}
               className={`px-5 py-2.5 rounded-full text-xs font-bold tracking-wide transition-all cursor-pointer ${isOptimized && !isScanning
-                  ? 'bg-card text-foreground shadow-sm border border-border/20 scale-105'
-                  : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-card text-foreground shadow-sm border border-border/20 scale-105'
+                : 'text-muted-foreground hover:text-foreground'
                 }`}
             >
               Optimized by AI
@@ -310,7 +310,7 @@ export default function Landing() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           className="relative border border-border/80 rounded-3xl shadow-2xl overflow-hidden max-w-5xl mx-auto border-t-white/10"
-          style={{ 
+          style={{
             backgroundColor: 'color-mix(in srgb, var(--card) 60%, transparent)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)'
@@ -352,7 +352,7 @@ export default function Landing() {
 
           {/* Mockup Content Grid */}
           <div className="p-5 sm:p-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* Left/Middle Column (Score & Recommendations) */}
             <div className="lg:col-span-2 space-y-6">
 
@@ -400,10 +400,10 @@ export default function Landing() {
                       key={tag.text}
                       layout
                       className={`text-xs px-3.5 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 transition-all ${isOptimized
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                          : tag.opt
-                            ? 'bg-destructive/10 text-destructive border-destructive/20'
-                            : 'bg-secondary text-muted-foreground border-border/40'
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                        : tag.opt
+                          ? 'bg-destructive/10 text-destructive border-destructive/20'
+                          : 'bg-secondary text-muted-foreground border-border/40'
                         }`}
                     >
                       {isOptimized ? '✓' : tag.opt ? '✗' : '+'} {tag.text}

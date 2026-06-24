@@ -1,35 +1,29 @@
-const BASE = '/api'
+import axios from 'axios'
 
-async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.message || 'Request failed')
-  return data
-}
+const api = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+})
+
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const message = err.response?.data?.message || err.message || 'Request failed'
+    return Promise.reject(new Error(message))
+  }
+)
 
 export const auth = {
-  signup: (body) => request('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
-  login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
-  logout: () => request('/auth/logout', { method: 'POST' }),
-  me: () => request('/auth/me'),
+  signup: (body) => api.post('/auth/signup', body).then((r) => r.data),
+  login: (body) => api.post('/auth/login', body).then((r) => r.data),
+  logout: () => api.post('/auth/logout').then((r) => r.data),
+  me: () => api.get('/auth/me').then((r) => r.data),
 }
 
-export const resumes = {
-  upload: (file) => {
-    const form = new FormData()
-    form.append('resume', file)
-    return fetch(`${BASE}/resumes/upload`, {
-      method: 'POST',
-      credentials: 'include',
-      body: form,
-    }).then((r) => r.json())
-  },
-  list: () => request('/resumes'),
-  get: (id) => request(`/resumes/${id}`),
-  analyze: (id) => request(`/resumes/${id}/analyze`, { method: 'POST' }),
-  fix: (id) => request(`/resumes/${id}/fix`, { method: 'POST' }),
+export const uploadResume = (file) => {
+  const form = new FormData()
+  form.append('resume', file)
+  return api.post('/resumes/upload', form)
 }
+
+export default api

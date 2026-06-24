@@ -8,6 +8,7 @@ import PageTransition from '../components/ui/page-transition'
 import { 
   User as UserIcon, Lock, Camera, CheckCircle, AlertCircle, Loader2, Key
 } from 'lucide-react'
+import { useUpdateProfile, useChangePassword, useUploadAvatar } from '../lib/hooks/use-api'
 
 export default function Profile() {
   const { user, setUser } = useAuth()
@@ -22,15 +23,18 @@ export default function Profile() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  // Loading states
-  const [updatingProfile, setUpdatingProfile] = useState(false)
-  const [updatingPassword, setUpdatingPassword] = useState(false)
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
-
   // Status messages
   const [profileMsg, setProfileMsg] = useState({ type: '', text: '' })
   const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' })
   const [avatarMsg, setAvatarMsg] = useState({ type: '', text: '' })
+
+  const updateProfileMutation = useUpdateProfile()
+  const changePasswordMutation = useChangePassword()
+  const uploadAvatarMutation = useUploadAvatar()
+
+  const updatingProfile = updateProfileMutation.isPending
+  const updatingPassword = changePasswordMutation.isPending
+  const uploadingAvatar = uploadAvatarMutation.isPending
 
   const clearMessages = () => {
     setProfileMsg({ type: '', text: '' })
@@ -38,34 +42,21 @@ export default function Profile() {
     setAvatarMsg({ type: '', text: '' })
   }
 
-  const handleUpdateProfile = async (e) => {
+  const handleUpdateProfile = (e) => {
     e.preventDefault()
     clearMessages()
-    setUpdatingProfile(true)
-
-    try {
-      const res = await fetch('/api/auth/profile', {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email }),
-      })
-
-      const data = await res.json()
-      if (res.ok) {
+    updateProfileMutation.mutate({ name, email }, {
+      onSuccess: (data) => {
         setUser(data.user)
         setProfileMsg({ type: 'success', text: 'Profile updated successfully!' })
-      } else {
-        setProfileMsg({ type: 'error', text: data.message || 'Failed to update profile' })
-      }
-    } catch {
-      setProfileMsg({ type: 'error', text: 'Network error. Please try again.' })
-    } finally {
-      setUpdatingProfile(false)
-    }
+      },
+      onError: (err) => {
+        setProfileMsg({ type: 'error', text: err.message })
+      },
+    })
   }
 
-  const handleChangePassword = async (e) => {
+  const handleChangePassword = (e) => {
     e.preventDefault()
     clearMessages()
 
@@ -74,39 +65,25 @@ export default function Profile() {
       return
     }
 
-    setUpdatingPassword(true)
-
-    try {
-      const res = await fetch('/api/auth/password', {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      })
-
-      const data = await res.json()
-      if (res.ok) {
+    changePasswordMutation.mutate({ currentPassword, newPassword }, {
+      onSuccess: () => {
         setPasswordMsg({ type: 'success', text: 'Password changed successfully!' })
         setCurrentPassword('')
         setNewPassword('')
         setConfirmPassword('')
-      } else {
-        setPasswordMsg({ type: 'error', text: data.message || 'Failed to change password' })
-      }
-    } catch {
-      setPasswordMsg({ type: 'error', text: 'Network error. Please try again.' })
-    } finally {
-      setUpdatingPassword(false)
-    }
+      },
+      onError: (err) => {
+        setPasswordMsg({ type: 'error', text: err.message })
+      },
+    })
   }
 
-  const handleAvatarChange = async (e) => {
+  const handleAvatarChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     clearMessages()
 
-    // Client-side validations
     if (!file.type.startsWith('image/')) {
       setAvatarMsg({ type: 'error', text: 'Please select an image file.' })
       return
@@ -116,30 +93,18 @@ export default function Profile() {
       return
     }
 
-    setUploadingAvatar(true)
-
     const formData = new FormData()
     formData.append('avatar', file)
 
-    try {
-      const res = await fetch('/api/auth/avatar', {
-        method: 'PUT',
-        credentials: 'include',
-        body: formData,
-      })
-
-      const data = await res.json()
-      if (res.ok) {
+    uploadAvatarMutation.mutate(formData, {
+      onSuccess: (data) => {
         setUser(data.user)
         setAvatarMsg({ type: 'success', text: 'Avatar updated successfully!' })
-      } else {
-        setAvatarMsg({ type: 'error', text: data.message || 'Failed to upload avatar' })
-      }
-    } catch {
-      setAvatarMsg({ type: 'error', text: 'Network error. Please try again.' })
-    } finally {
-      setUploadingAvatar(false)
-    }
+      },
+      onError: (err) => {
+        setAvatarMsg({ type: 'error', text: err.message })
+      },
+    })
   }
 
   return (
