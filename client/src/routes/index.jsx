@@ -14,6 +14,10 @@ import Roadmap from '../pages/Roadmap'
 import SalaryNegotiation from '../pages/SalaryNegotiation'
 import Editor from '../pages/Editor'
 import Profile from '../pages/Profile'
+import Networking from '../pages/Networking'
+import MockInterview from '../pages/MockInterview'
+import JobTracker from '../pages/JobTracker'
+import LinkedInPage from '../pages/LinkedInPage'
 
 export default function AppRouter() {
   return (
@@ -33,6 +37,10 @@ export default function AppRouter() {
           <Route path="/analysis/:resumeId/interview-prep" element={<InterviewPrep />} />
           <Route path="/analysis/:resumeId/roadmap" element={<Roadmap />} />
           <Route path="/analysis/:resumeId/salary-negotiation" element={<SalaryNegotiation />} />
+          <Route path="/analysis/:resumeId/networking" element={<Networking />} />
+          <Route path="/analysis/:resumeId/mock-interview" element={<MockInterview />} />
+          <Route path="/analysis/:resumeId/job-tracker" element={<JobTracker />} />
+          <Route path="/analysis/:resumeId/linkedin" element={<LinkedInPage />} />
           <Route path="/editor/:resumeId" element={<Editor />} />
           <Route path="/profile" element={<Profile />} />
         </Route>

@@ -7,7 +7,11 @@ import {
   generateCoverLetterForResume, getCoverLetters, deleteCoverLetter,
   getInterviewPrepForResume, regenerateInterviewPrepForResume,
   getRoadmapByResumeId, generateRoadmapForResume, deleteRoadmap,
-  getSalaryNegotiationsByResume, getSalaryNegotiationById, createSalaryNegotiation, sendNegotiationMessage, deleteSalaryNegotiation
+  getSalaryNegotiationsByResume, getSalaryNegotiationById, createSalaryNegotiation, sendNegotiationMessage, deleteSalaryNegotiation,
+  generateNetworkingMessageForResume, getNetworkingMessages, deleteNetworkingMessage,
+  startMockInterview, getMockInterviewSessions, submitMockInterviewAnswer, deleteMockInterviewSession,
+  getJobApplications, createJobApplication, updateJobApplication, deleteJobApplication,
+  generateLinkedInProfileForResume, getLinkedInProfile
 } from '../controllers/geminiController.js'
 import { downloadDocx, downloadPdf, previewHtml } from '../controllers/exportController.js'
 import { aiLimiter } from '../middleware/rateLimiter.js'
@@ -54,6 +58,28 @@ router.post('/:id/versions', protect, saveVersion)
 router.get('/:id/export/docx', protect, downloadDocx)
 router.get('/:id/export/pdf', protect, downloadPdf)
 router.get('/:id/export/preview', protect, previewHtml)
+
+// Networking Messages routes
+router.post('/:id/networking', protect, aiLimiter, generateNetworkingMessageForResume)
+router.get('/:id/networking', protect, getNetworkingMessages)
+router.delete('/:id/networking/:msgId', protect, deleteNetworkingMessage)
+
+// Mock Interview routes
+router.get('/:id/mock-interview', protect, getMockInterviewSessions)
+router.post('/:id/mock-interview', protect, aiLimiter, startMockInterview)
+router.post('/:id/mock-interview/:sessionId/answer', protect, aiLimiter, submitMockInterviewAnswer)
+router.delete('/:id/mock-interview/:sessionId', protect, deleteMockInterviewSession)
+
+// Job Application Tracker routes
+router.get('/:id/applications', protect, getJobApplications)
+router.post('/:id/applications', protect, createJobApplication)
+router.put('/:id/applications/:appId', protect, updateJobApplication)
+router.delete('/:id/applications/:appId', protect, deleteJobApplication)
+
+// LinkedIn Profile Converter routes
+router.get('/:id/linkedin', protect, getLinkedInProfile)
+router.post('/:id/linkedin', protect, aiLimiter, generateLinkedInProfileForResume)
+
 router.delete('/:id', protect, deleteResume)
 
 export default router

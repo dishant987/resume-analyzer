@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
@@ -8,7 +7,8 @@ import PageTransition, { stagger, staggerContainer } from '../components/ui/page
 import { motion } from 'framer-motion'
 import {
   Loader2, AlertCircle, CheckCircle2, XCircle, AlertTriangle,
-  Briefcase, Mail, MessageSquare, ArrowRight, Compass, Coins
+  Briefcase, Mail, MessageSquare, ArrowRight, Compass, Coins,
+  Send, Mic, ClipboardList, UserCheck
 } from 'lucide-react'
 import AnalysisNavigation from '../components/ui/analysis-navigation'
 import { useResume, useAnalysis, useAnalyzeResume } from '../lib/hooks/use-api'
@@ -333,6 +333,106 @@ export default function Analysis() {
                       className="mt-5 w-full border-teal-500/20 hover:bg-teal-500/10 hover:text-teal-500 hover:border-teal-500/40 text-xs font-bold gap-1 rounded-xl transition-all cursor-pointer"
                     >
                       Practice Negotiation
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Networking Messages Card */}
+                <Card className="border border-border bg-card hover:border-pink-500/30 transition-all duration-300 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/5 rounded-full blur-2xl group-hover:bg-pink-500/10 transition-all duration-300" />
+                  <CardContent className="p-5 flex flex-col justify-between h-full min-h-[190px]">
+                    <div className="space-y-2">
+                      <div className="h-10 w-10 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-500 mb-4 border border-pink-500/15">
+                        <Send className="h-5.5 w-5.5" />
+                      </div>
+                      <h3 className="font-bold text-sm text-foreground">AI Networking Messages</h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Generate cold outreach emails, LinkedIn connection requests, and referral messages tailored to your resume.
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={() => navigate(`/analysis/${resumeId}/networking`)}
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-5 w-full border-pink-500/20 hover:bg-pink-500/10 hover:text-pink-500 hover:border-pink-500/40 text-xs font-bold gap-1 rounded-xl transition-all cursor-pointer"
+                    >
+                      Write Messages
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Mock Interview Card */}
+                <Card className="border border-border bg-card hover:border-orange-500/30 transition-all duration-300 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/5 rounded-full blur-2xl group-hover:bg-orange-500/10 transition-all duration-300" />
+                  <CardContent className="p-5 flex flex-col justify-between h-full min-h-[190px]">
+                    <div className="space-y-2">
+                      <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 mb-4 border border-orange-500/15">
+                        <Mic className="h-5.5 w-5.5" />
+                      </div>
+                      <h3 className="font-bold text-sm text-foreground">Mock Interview with Voice</h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Practice answering interview questions out loud. Get AI feedback on content, structure, and delivery.
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={() => navigate(`/analysis/${resumeId}/mock-interview`)}
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-5 w-full border-orange-500/20 hover:bg-orange-500/10 hover:text-orange-500 hover:border-orange-500/40 text-xs font-bold gap-1 rounded-xl transition-all cursor-pointer"
+                    >
+                      Start Practice
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Job Tracker Card */}
+                <Card className="border border-border bg-card hover:border-cyan-500/30 transition-all duration-300 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl group-hover:bg-cyan-500/10 transition-all duration-300" />
+                  <CardContent className="p-5 flex flex-col justify-between h-full min-h-[190px]">
+                    <div className="space-y-2">
+                      <div className="h-10 w-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-500 mb-4 border border-cyan-500/15">
+                        <ClipboardList className="h-5.5 w-5.5" />
+                      </div>
+                      <h3 className="font-bold text-sm text-foreground">Job Application Tracker</h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Track your job applications across stages. Get AI insights on callback likelihood and follow-up timing.
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={() => navigate(`/analysis/${resumeId}/job-tracker`)}
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-5 w-full border-cyan-500/20 hover:bg-cyan-500/10 hover:text-cyan-500 hover:border-cyan-500/40 text-xs font-bold gap-1 rounded-xl transition-all cursor-pointer"
+                    >
+                      Open Tracker
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* LinkedIn Profile Card */}
+                <Card className="border border-border bg-card hover:border-blue-500/30 transition-all duration-300 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all duration-300" />
+                  <CardContent className="p-5 flex flex-col justify-between h-full min-h-[190px]">
+                    <div className="space-y-2">
+                      <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 mb-4 border border-blue-500/15">
+                        <UserCheck className="h-5.5 w-5.5" />
+                      </div>
+                      <h3 className="font-bold text-sm text-foreground">LinkedIn Profile Converter</h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Convert your resume into an optimized LinkedIn headline, about section, and experience descriptions.
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={() => navigate(`/analysis/${resumeId}/linkedin`)}
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-5 w-full border-blue-500/20 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/40 text-xs font-bold gap-1 rounded-xl transition-all cursor-pointer"
+                    >
+                      Convert Profile
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
                   </CardContent>

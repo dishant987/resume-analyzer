@@ -167,6 +167,139 @@ export function useDeleteCoverLetter() {
   })
 }
 
+// ── Networking Messages ─────────────────────────────────
+export function useNetworkingMessages(id) {
+  return useQuery({
+    queryKey: ['networking', id],
+    queryFn: () => api.get(`/resumes/${id}/networking`).then((r) => r.data),
+    enabled: !!id,
+  })
+}
+
+export function useGenerateNetworkingMessage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }) => api.post(`/resumes/${id}/networking`, body).then((r) => r.data),
+    onSuccess: (data, { id }) => {
+      qc.setQueryData(['networking', id], (old) => ({
+        messages: [data.networkingMessage, ...(old?.messages || [])],
+      }))
+    },
+  })
+}
+
+export function useDeleteNetworkingMessage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ resumeId, msgId }) => api.delete(`/resumes/${resumeId}/networking/${msgId}`),
+    onSuccess: (_, { resumeId }) => {
+      qc.invalidateQueries({ queryKey: ['networking', resumeId] })
+    },
+  })
+}
+
+// ── Mock Interview ──────────────────────────────────────
+export function useMockInterviewSessions(id) {
+  return useQuery({
+    queryKey: ['mock-interview', id],
+    queryFn: () => api.get(`/resumes/${id}/mock-interview`).then((r) => r.data),
+    enabled: !!id,
+  })
+}
+
+export function useStartMockInterview() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }) => api.post(`/resumes/${id}/mock-interview`, body).then((r) => r.data),
+    onSuccess: (data, { id }) => {
+      qc.setQueryData(['mock-interview', id], (old) => ({
+        sessions: [data.session, ...(old?.sessions || [])],
+      }))
+    },
+  })
+}
+
+export function useSubmitMockAnswer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ resumeId, sessionId, answer }) =>
+      api.post(`/resumes/${resumeId}/mock-interview/${sessionId}/answer`, { answer }).then((r) => r.data),
+    onSuccess: (data, { resumeId }) => {
+      qc.invalidateQueries({ queryKey: ['mock-interview', resumeId] })
+    },
+  })
+}
+
+export function useDeleteMockInterview() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ resumeId, sessionId }) => api.delete(`/resumes/${resumeId}/mock-interview/${sessionId}`),
+    onSuccess: (_, { resumeId }) => {
+      qc.invalidateQueries({ queryKey: ['mock-interview', resumeId] })
+    },
+  })
+}
+
+// ── Job Applications ───────────────────────────────────
+export function useJobApplications(id) {
+  return useQuery({
+    queryKey: ['applications', id],
+    queryFn: () => api.get(`/resumes/${id}/applications`).then((r) => r.data),
+    enabled: !!id,
+  })
+}
+
+export function useCreateJobApplication() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }) => api.post(`/resumes/${id}/applications`, body).then((r) => r.data),
+    onSuccess: (data, { id }) => {
+      qc.setQueryData(['applications', id], (old) => ({
+        applications: [data.application, ...(old?.applications || [])],
+      }))
+    },
+  })
+}
+
+export function useUpdateJobApplication() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ resumeId, appId, ...body }) => api.put(`/resumes/${resumeId}/applications/${appId}`, body).then((r) => r.data),
+    onSuccess: (_, { resumeId }) => {
+      qc.invalidateQueries({ queryKey: ['applications', resumeId] })
+    },
+  })
+}
+
+export function useDeleteJobApplication() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ resumeId, appId }) => api.delete(`/resumes/${resumeId}/applications/${appId}`),
+    onSuccess: (_, { resumeId }) => {
+      qc.invalidateQueries({ queryKey: ['applications', resumeId] })
+    },
+  })
+}
+
+// ── LinkedIn Profile ──────────────────────────────────
+export function useLinkedInProfile(id) {
+  return useQuery({
+    queryKey: ['linkedin', id],
+    queryFn: () => api.get(`/resumes/${id}/linkedin`).then((r) => r.data),
+    enabled: !!id,
+  })
+}
+
+export function useGenerateLinkedInProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => api.post(`/resumes/${id}/linkedin`).then((r) => r.data),
+    onSuccess: (data, id) => {
+      qc.setQueryData(['linkedin', id], data)
+    },
+  })
+}
+
 // ── Interview Prep ──────────────────────────────────────
 export function useInterviewPrep(id) {
   return useQuery({
