@@ -104,8 +104,25 @@ export default function Editor() {
     setAccepted((prev) => ({ ...prev, [section]: !prev[section] }))
   }
 
-  const downloadFile = (format) => {
-    window.open(`/api/resumes/${resumeId}/export/${format}`, '_blank')
+  const downloadFile = async (format) => {
+    try {
+      const res = await fetch(`/api/resumes/${resumeId}/export/${format}`)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const disposition = res.headers.get('content-disposition') || ''
+      const filenameMatch = disposition.match(/filename="?(.+?)"?$/)
+      const filename = filenameMatch ? filenameMatch[1] : `resume.${format}`
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      a.remove()
+    } catch (err) {
+      console.error('Download error:', err)
+    }
   }
 
   const handleSave = async () => {

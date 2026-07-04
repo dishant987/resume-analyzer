@@ -1,6 +1,7 @@
 import Resume from '../models/Resume.js'
 import ResumeVersion from '../models/ResumeVersion.js'
-import { buildDocx, buildPdf, buildHtml } from '../services/exportService.js'
+import { buildPdf, buildPdfHtml } from '../services/pdfService.js'
+import { buildDocx } from '../services/docxService.js'
 
 export const downloadDocx = async (req, res, next) => {
   try {
@@ -9,9 +10,10 @@ export const downloadDocx = async (req, res, next) => {
     const version = await ResumeVersion.findOne({ resumeId: resume._id }).sort({ versionNumber: -1 })
     if (!version) return res.status(400).json({ message: 'No improved version to export' })
 
-    const buffer = await buildDocx(version.content)
+    const buffer = await buildDocx(version.content, resume.rawText)
+    const filename = resume.originalFilename.replace(/\.[^.]+$/, '')
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-    res.setHeader('Content-Disposition', `attachment; filename="resume-${resume.originalFilename.replace(/\.[^.]+$/, '')}.docx"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.docx"`)
     res.send(buffer)
   } catch (err) {
     next(err)
@@ -25,9 +27,10 @@ export const downloadPdf = async (req, res, next) => {
     const version = await ResumeVersion.findOne({ resumeId: resume._id }).sort({ versionNumber: -1 })
     if (!version) return res.status(400).json({ message: 'No improved version to export' })
 
-    const pdf = await buildPdf(version.content)
+    const pdf = await buildPdf(version.content, resume.rawText)
+    const filename = resume.originalFilename.replace(/\.[^.]+$/, '')
     res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `attachment; filename="resume-${resume.originalFilename.replace(/\.[^.]+$/, '')}.pdf"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`)
     res.send(pdf)
   } catch (err) {
     next(err)
@@ -41,7 +44,7 @@ export const previewHtml = async (req, res, next) => {
     const version = await ResumeVersion.findOne({ resumeId: resume._id }).sort({ versionNumber: -1 })
     if (!version) return res.status(400).json({ message: 'No improved version' })
 
-    const html = buildHtml(version.content)
+    const html = buildPdfHtml(version.content, resume.rawText)
     res.setHeader('Content-Type', 'text/html')
     res.send(html)
   } catch (err) {
