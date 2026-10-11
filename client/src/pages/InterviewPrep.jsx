@@ -162,19 +162,29 @@ export default function InterviewPrep() {
                   </div>
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleGenerateQuestions(true)}
-                  disabled={generating}
-                  className="font-bold text-xs gap-1.5 cursor-pointer hover:bg-amber-500/5 hover:text-amber-500 hover:border-amber-500/30"
-                >
-                  {generating ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Regenerating...</>
-                  ) : (
-                    <><BookOpen className="h-3.5 w-3.5 text-amber-500" /> Regenerate Questions</>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => navigate(`/analysis/${resumeId}/mock-interview`)}
+                    className="font-bold text-xs gap-1.5 cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground shadow-md"
+                  >
+                    Start Live Mock Interview & Code Compiler
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleGenerateQuestions(true)}
+                    disabled={generating}
+                    className="font-bold text-xs gap-1.5 cursor-pointer hover:bg-amber-500/5 hover:text-amber-500 hover:border-amber-500/30"
+                  >
+                    {generating ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Regenerating...</>
+                    ) : (
+                      <>Regenerate Q&A</>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

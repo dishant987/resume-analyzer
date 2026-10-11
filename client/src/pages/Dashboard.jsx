@@ -13,9 +13,10 @@ import {
 } from 'lucide-react'
 import {
   ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line
+  Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Cell
 } from 'recharts'
 import { motion } from 'framer-motion'
+import { CustomTooltip } from '../components/ui/custom-tooltip'
 import { ConfirmModal } from '../components/ui/confirm-modal'
 import { useResumeList, useResumeStats, useDeleteResume } from '../lib/hooks/use-api'
 
@@ -376,11 +377,11 @@ export default function Dashboard() {
                     <div className="h-72 w-full flex items-center justify-center">
                       <ResponsiveContainer width="100%" height="100%">
                         <RadarChart cx="50%" cy="50%" outerRadius="70%" data={scoreData}>
-                          <PolarGrid stroke="#e2e8f0" />
-                          <PolarAngleAxis dataKey="subject" tick={{ fill: 'currentColor', fontSize: 10, fontWeight: 'bold' }} className="text-muted-foreground" />
-                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'currentColor', fontSize: 9 }} className="text-muted-foreground" />
-                          <Radar name="Average Score" dataKey="score" stroke="var(--primary, #1a73e8)" fill="var(--primary, #1a73e8)" fillOpacity={0.3} />
-                          <Tooltip />
+                          <PolarGrid stroke="var(--border)" strokeOpacity={0.6} />
+                          <PolarAngleAxis dataKey="subject" tick={{ fill: 'var(--muted-foreground)', fontSize: 11, fontWeight: '600' }} />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--muted-foreground)', fontSize: 9 }} stroke="var(--border)" />
+                          <Radar name="Average Score" dataKey="score" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.35} />
+                          <Tooltip content={<CustomTooltip />} />
                         </RadarChart>
                       </ResponsiveContainer>
                     </div>
@@ -406,19 +407,16 @@ export default function Dashboard() {
                         <div className="h-72 w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={lineChartData} margin={{ top: 10, right: 20, left: -20, bottom: 5 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f015" />
-                              <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 'semibold' }} />
-                              <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                              <Tooltip 
-                                contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-                                labelStyle={{ color: 'var(--foreground)', fontWeight: 'bold' }}
-                              />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.5} />
+                              <XAxis dataKey="name" stroke="var(--border)" tick={{ fill: 'var(--muted-foreground)', fontSize: 10, fontWeight: '600' }} />
+                              <YAxis domain={[0, 100]} stroke="var(--border)" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
+                              <Tooltip content={<CustomTooltip />} />
                               <Line 
                                 type="monotone" 
                                 dataKey="Score" 
                                 stroke="var(--primary)" 
                                 strokeWidth={3} 
-                                activeDot={{ r: 6 }} 
+                                activeDot={{ r: 6, fill: 'var(--primary)', stroke: 'var(--card)', strokeWidth: 2 }} 
                                 dot={{ stroke: 'var(--primary)', strokeWidth: 2, r: 4, fill: 'var(--card)' }}
                               />
                             </LineChart>
@@ -434,11 +432,15 @@ export default function Dashboard() {
                     <div className="h-72 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={statusData} margin={{ top: 20, right: 30, left: -10, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 'semibold' }} />
-                          <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                          <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }} />
-                          <Bar dataKey="count" radius={[8, 8, 0, 0]} barSize={40} fill="var(--primary)" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.5} />
+                          <XAxis dataKey="name" stroke="var(--border)" tick={{ fill: 'var(--muted-foreground)', fontSize: 11, fontWeight: '600' }} />
+                          <YAxis stroke="var(--border)" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} allowDecimals={false} />
+                          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                          <Bar dataKey="count" radius={[8, 8, 0, 0]} barSize={40}>
+                            {statusData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>

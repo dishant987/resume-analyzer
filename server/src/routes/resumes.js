@@ -10,6 +10,8 @@ import {
   getSalaryNegotiationsByResume, getSalaryNegotiationById, createSalaryNegotiation, sendNegotiationMessage, deleteSalaryNegotiation,
   generateNetworkingMessageForResume, getNetworkingMessages, deleteNetworkingMessage,
   startMockInterview, getMockInterviewSessions, submitMockInterviewAnswer, deleteMockInterviewSession,
+  getAIInterviewRecommendation, executeInterviewCode, finalizeMockInterview,
+
   getJobApplications, createJobApplication, updateJobApplication, deleteJobApplication,
   generateLinkedInProfileForResume, getLinkedInProfile
 } from '../controllers/geminiController.js'
@@ -67,7 +69,10 @@ router.delete('/:id/networking/:msgId', protect, deleteNetworkingMessage)
 // Mock Interview routes
 router.get('/:id/mock-interview', protect, getMockInterviewSessions)
 router.post('/:id/mock-interview', protect, aiLimiter, startMockInterview)
+router.post('/:id/mock-interview/recommend', protect, aiLimiter, getAIInterviewRecommendation)
+router.post('/:id/mock-interview/execute-code', protect, executeInterviewCode)
 router.post('/:id/mock-interview/:sessionId/answer', protect, aiLimiter, submitMockInterviewAnswer)
+router.post('/:id/mock-interview/:sessionId/finalize', protect, finalizeMockInterview)
 router.delete('/:id/mock-interview/:sessionId', protect, deleteMockInterviewSession)
 
 // Job Application Tracker routes

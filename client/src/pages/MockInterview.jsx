@@ -6,16 +6,23 @@ import { Badge } from '../components/ui/badge'
 import { Skeleton } from '../components/ui/skeleton'
 import { ConfirmModal } from '../components/ui/confirm-modal'
 import PageTransition from '../components/ui/page-transition'
+import { CodingWorkspace } from '../components/ui/coding-workspace'
+import { InterviewFeedbackModal } from '../components/ui/interview-feedback-modal'
 import {
   Loader2, Mic, Send, Bot, User, Trash2, AlertCircle, Play, Square,
-  Maximize2, Minimize2, Clock, BarChart3, Trophy, Target
+  Maximize2, Minimize2, Clock, BarChart3, Trophy, Target, Sparkles,
+  Code2, Briefcase, FileText, CheckCircle2, RefreshCw, FileCheck
 } from 'lucide-react'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  LineChart, Line, Cell
 } from 'recharts'
 import AnalysisNavigation from '../components/ui/analysis-navigation'
-import { useResume, useMockInterviewSessions, useStartMockInterview, useSubmitMockAnswer, useDeleteMockInterview } from '../lib/hooks/use-api'
+import { CustomTooltip } from '../components/ui/custom-tooltip'
+import {
+  useResume, useMockInterviewSessions, useStartMockInterview,
+  useSubmitMockAnswer, useDeleteMockInterview, useAIInterviewRecommendation,
+  useExecuteInterviewCode, useFinalizeMockInterview
+} from '../lib/hooks/use-api'
 
 const formatTime = (seconds) => {
   const m = Math.floor(seconds / 60)
@@ -32,24 +39,34 @@ export default function MockInterview() {
   const { data: resumeData, isLoading } = useResume(resumeId)
   const { data: sessionsData, isLoading: sessionsLoading } = useMockInterviewSessions(resumeId)
   const startMutation = useStartMockInterview()
+
   const submitMutation = useSubmitMockAnswer()
   const deleteMutation = useDeleteMockInterview()
+  const recommendMutation = useAIInterviewRecommendation()
+  const executeCodeMutation = useExecuteInterviewCode()
+  const finalizeMutation = useFinalizeMockInterview()
 
   const resume = resumeData?.resume
   const sessions = sessionsData?.sessions || []
 
+  // Setup options
+  const [durationMinutes, setDurationMinutes] = useState(15)
+  const [category, setCategory] = useState('technical') // 'technical' | 'hr' | 'ai_suggested'
+  const [selectedLanguage, setSelectedLanguage] = useState('javascript')
+  const [targetRole, setTargetRole] = useState('Software Engineer')
+  const [aiRationale, setAiRationale] = useState('')
+
+  // Live Session State
   const [activeSessionId, setActiveSessionId] = useState(null)
   const [answer, setAnswer] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [error, setError] = useState('')
-  const [questionType, setQuestionType] = useState('mixed')
   const [isFullScreen, setIsFullScreen] = useState(false)
-  const [totalSeconds, setTotalSeconds] = useState(600)
-  const [timeLeft, setTimeLeft] = useState(600)
+  const [timeLeft, setTimeLeft] = useState(900)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [showAnalytics, setShowAnalytics] = useState(false)
+  const [viewingFeedbackSession, setViewingFeedbackSession] = useState(null)
 
   const activeSession = activeSessionId
     ? sessions.find((s) => s._id === activeSessionId)
@@ -66,12 +83,17 @@ export default function MockInterview() {
     }
   }, [])
 
+  // Auto handle timeout
   const handleAutoFinish = useCallback(() => {
-    if (answer.trim() && activeSession && !activeSession.isComplete) {
-      submitMutation.mutate({ resumeId, sessionId: activeSession._id, answer: answer.trim() })
+    if (activeSession && !activeSession.isComplete) {
+      finalizeMutation.mutate({ resumeId, sessionId: activeSession._id }, {
+        onSuccess: (data) => {
+          setIsTimerRunning(false)
+          setViewingFeedbackSession(data.session)
+        }
+      })
     }
-    setAnswer('')
-  }, [answer, activeSession, resumeId, submitMutation])
+  }, [activeSession, resumeId, finalizeMutation])
 
   useEffect(() => {
     if (isTimerRunning && timeLeft > 0) {
@@ -91,26 +113,54 @@ export default function MockInterview() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTimerRunning, handleAutoFinish])
 
+  // Get AI Resume Recommendations
+  const handleGetRecommendation = () => {
+    setError('')
+    recommendMutation.mutate(resumeId, {
+      onSuccess: (data) => {
+        const rec = data.recommendation
+        if (rec) {
+          if (rec.recommendedCategory) setCategory(rec.recommendedCategory)
+          if (rec.recommendedLanguage) setSelectedLanguage(rec.recommendedLanguage)
+          if (rec.recommendedDurationMinutes) setDurationMinutes(rec.recommendedDurationMinutes)
+          if (rec.targetRole) setTargetRole(rec.targetRole)
+          if (rec.rationale) setAiRationale(rec.rationale)
+        }
+      },
+      onError: (err) => setError(err.message || 'Failed to generate recommendation'),
+    })
+  }
+
+  // Start new mock interview
   const handleStartSession = () => {
     setError('')
-    setTimeLeft(totalSeconds)
+    const totalSecs = (Number(durationMinutes) || 15) * 60
+    setTimeLeft(totalSecs)
     setIsTimerRunning(true)
     setIsFullScreen(true)
-    startMutation.mutate({ id: resumeId, questionType }, {
+
+    startMutation.mutate({
+      id: resumeId,
+      category,
+      durationMinutes: Number(durationMinutes),
+      selectedLanguage,
+      targetRole,
+      questionType: category === 'hr' ? 'behavioral' : 'technical',
+    }, {
       onSuccess: (data) => {
         setActiveSessionId(data.session._id)
       },
       onError: (err) => {
-        setError(err.message)
+        setError(err.message || 'Failed to start interview session')
         setIsTimerRunning(false)
         setIsFullScreen(false)
       },
     })
   }
 
+  // Submit Answer (Voice/Text)
   const handleSubmitAnswer = () => {
     if (!answer.trim() || !activeSession) return
     setError('')
@@ -125,11 +175,49 @@ export default function MockInterview() {
       onSuccess: (data) => {
         if (data.session.isComplete) {
           setIsTimerRunning(false)
-          setTimeLeft(0)
+          setViewingFeedbackSession(data.session)
         }
         setActiveSessionId(data.session._id)
       },
     })
+  }
+
+  // Submit Code Solution
+  const handleSubmitCodeSolution = (codeSubmission) => {
+    if (!activeSession) return
+    setError('')
+    submitMutation.mutate({
+      resumeId,
+      sessionId: activeSession._id,
+      answer: `Submitted ${codeSubmission.language.toUpperCase()} Solution (Passed ${codeSubmission.passedCount}/${codeSubmission.totalCount} Test Cases)`,
+      codeSubmission,
+    }, {
+      onError: (err) => setError(err.message),
+      onSuccess: (data) => {
+        if (data.session.isComplete) {
+          setIsTimerRunning(false)
+          setViewingFeedbackSession(data.session)
+        }
+        setActiveSessionId(data.session._id)
+      },
+    })
+  }
+
+  // Execute Code against test cases
+  const handleExecuteCode = async ({ language, code, testCases, question }) => {
+    try {
+      const data = await executeCodeMutation.mutateAsync({
+        resumeId,
+        language,
+        code,
+        testCases,
+        question,
+      })
+      return data
+    } catch (err) {
+      setError(err.message || 'Code execution failed')
+      return null
+    }
   }
 
   const handleDeleteConfirm = () => {
@@ -176,482 +264,502 @@ export default function MockInterview() {
     ? activeSession.questions?.[activeSession.currentQuestionIndex]
     : null
 
-  // Build chart data from session scores
-  const scoreChartData = activeSession?.scores?.map((s, i) => ({
-    name: `Q${i + 1}`,
-    score: s.score,
-    type: activeSession.questions?.[s.questionIndex]?.type || '',
-  })) || []
+  const isCodingQuestion = currentQuestion?.type === 'coding' || (category === 'technical' && activeSession?.currentQuestionIndex % 2 === 1)
 
-  const completedSessions = sessions.filter((s) => s.isComplete && s.scores?.length > 0)
-  const progressData = completedSessions.map((s, i) => ({
-    name: `${i + 1}`,
-    score: s.averageScore || 0,
-    date: new Date(s.createdAt).toLocaleDateString(),
-  }))
-
-  // Full screen interview overlay
+  // Full Screen Live Interview Overlay
   const renderFullScreen = () => (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-border/60 bg-card shrink-0">
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-border/60 bg-card shrink-0">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-orange-500/10 border border-orange-500/20">
             <Clock className="h-4 w-4 text-orange-500" />
-            <span className={`font-mono text-lg font-bold ${timeLeft <= 60 ? 'text-destructive animate-pulse' : 'text-foreground'}`}>
+            <span className={`font-mono text-base font-bold ${timeLeft <= 60 ? 'text-destructive animate-pulse' : 'text-foreground'}`}>
               {formatTime(timeLeft)}
             </span>
           </div>
-          <Badge variant="outline" className="text-xs">
-            Q {activeSession.currentQuestionIndex + 1}/{activeSession.questions?.length || 0}
-          </Badge>
-          {activeSession?.averageScore > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              Avg: {activeSession.averageScore}/10
-            </Badge>
+          {activeSession && (
+            <>
+              <Badge variant="outline" className="text-xs">
+                Question {activeSession.currentQuestionIndex + 1} of {activeSession.questions?.length || 0}
+              </Badge>
+              <Badge variant="secondary" className="text-xs uppercase">
+                {activeSession.category || 'Technical'} Mode
+              </Badge>
+              {activeSession.selectedLanguage && (
+                <Badge variant="outline" className="text-xs font-mono">
+                  {activeSession.selectedLanguage.toUpperCase()}
+                </Badge>
+              )}
+            </>
           )}
         </div>
+
         <div className="flex items-center gap-2">
+          {activeSession && !activeSession.isComplete && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                finalizeMutation.mutate({ resumeId, sessionId: activeSession._id }, {
+                  onSuccess: (data) => {
+                    setIsTimerRunning(false)
+                    setIsFullScreen(false)
+                    setViewingFeedbackSession(data.session)
+                  }
+                })
+              }}
+              className="h-8 text-xs font-medium border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
+            >
+              Finish Interview & View Feedback
+            </Button>
+          )}
           <Button
-            variant="ghost" size="sm"
+            variant="ghost"
+            size="sm"
             onClick={() => setIsFullScreen(false)}
             className="h-8 px-2"
+            title="Minimize fullscreen"
           >
             <Minimize2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* Chat area */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-        {activeSession?.chatHistory?.map((entry, idx) => {
-          let parsedFeedback = null
-          if (entry.feedback) { try { parsedFeedback = JSON.parse(entry.feedback) } catch { /* empty */ } }
-          return (
-            <div key={idx} className={`flex gap-3 ${entry.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${entry.role === 'user' ? 'bg-primary/10' : 'bg-orange-500/10'}`}>
-                {entry.role === 'user' ? <User className="h-4 w-4 text-primary" /> : <Bot className="h-4 w-4 text-orange-500" />}
-              </div>
-              <div className={`max-w-[80%] ${entry.role === 'user' ? 'bg-primary/10' : 'bg-secondary'} rounded-2xl px-4 py-3`}>
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">{entry.message}</p>
-                {entry.feedback && entry.role === 'assistant' && idx > 0 && parsedFeedback && (
-                  <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
-                    {parsedFeedback.score && (
-                      <div className="flex items-center gap-2">
-                        <Trophy className="h-3.5 w-3.5 text-amber-500" />
-                        <span className="text-xs font-bold">Score: {parsedFeedback.score}/10</span>
+      {/* Main Workspace Area */}
+      <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0">
+        {/* Left Column: AI Assistant Chat & Questions History */}
+        <div className={`flex flex-col border-r border-border/60 ${isCodingQuestion ? 'lg:col-span-5' : 'lg:col-span-12'} overflow-hidden bg-muted/10`}>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {activeSession?.chatHistory?.map((entry, idx) => {
+              let parsedFeedback = null
+              if (entry.feedback) { try { parsedFeedback = JSON.parse(entry.feedback) } catch { /* empty */ } }
+              return (
+                <div key={idx} className={`flex gap-3 ${entry.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${entry.role === 'user' ? 'bg-primary/10' : 'bg-orange-500/10'}`}>
+                    {entry.role === 'user' ? <User className="h-4 w-4 text-primary" /> : <Bot className="h-4 w-4 text-orange-500" />}
+                  </div>
+                  <div className={`max-w-[85%] ${entry.role === 'user' ? 'bg-primary/10' : 'bg-card border border-border/60'} rounded-2xl px-4 py-3 shadow-xs`}>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{entry.message}</p>
+                    {entry.feedback && entry.role === 'assistant' && parsedFeedback && (
+                      <div className="mt-2 pt-2 border-t border-border/40 space-y-1">
+                        {parsedFeedback.score && (
+                          <div className="flex items-center gap-2">
+                            <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                            <span className="text-xs font-bold">Score: {parsedFeedback.score}/10</span>
+                          </div>
+                        )}
+                        {parsedFeedback.strengths && (
+                          <p className="text-xs text-emerald-500"><strong>Strengths:</strong> {parsedFeedback.strengths}</p>
+                        )}
+                        {parsedFeedback.improvementTip && (
+                          <p className="text-xs text-muted-foreground"><strong>Tip:</strong> {parsedFeedback.improvementTip}</p>
+                        )}
                       </div>
                     )}
-                    {parsedFeedback.strengths && (
-                      <p className="text-xs text-emerald-500"><strong>Strengths:</strong> {parsedFeedback.strengths}</p>
-                    )}
-                    {parsedFeedback.improvementTip && (
-                      <p className="text-xs text-muted-foreground"><strong>Tip:</strong> {parsedFeedback.improvementTip}</p>
-                    )}
+                  </div>
+                </div>
+              )
+            })}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Voice/Text Input Bar for Conversational / HR Questions */}
+          {!isCodingQuestion && !activeSession?.isComplete && currentQuestion && (
+            <div className="border-t border-border/60 bg-card p-4 shrink-0">
+              <div className="space-y-3 max-w-3xl mx-auto w-full">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <Target className="h-3.5 w-3.5 text-primary" />
+                    Question {activeSession.currentQuestionIndex + 1} of {activeSession.questions?.length}
+                  </span>
+                  <span className="text-[11px]">Speak or type your answer</span>
+                </div>
+                <div className="flex gap-2">
+                  <textarea
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    placeholder="Type your response or use voice input..."
+                    rows={3}
+                    className="flex-1 rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm resize-none focus:ring-1 focus:ring-primary outline-none"
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitAnswer() } }}
+                  />
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant={isListening ? 'destructive' : 'outline'}
+                      size="icon"
+                      onClick={toggleListening}
+                      className="h-10 w-10 shrink-0"
+                      title={isListening ? 'Stop voice recording' : 'Start voice input'}
+                    >
+                      {isListening ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4 text-orange-500" />}
+                    </Button>
+                    <Button
+                      size="icon"
+                      onClick={handleSubmitAnswer}
+                      disabled={submitMutation.isPending || !answer.trim()}
+                      className="h-10 w-10 shrink-0 font-bold"
+                    >
+                      {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                {isListening && (
+                  <div className="flex items-center gap-2 text-xs text-orange-500 animate-pulse font-medium">
+                    <Mic className="h-3.5 w-3.5" /> Listening... Speak clearly into your microphone.
                   </div>
                 )}
               </div>
             </div>
-          )
-        })}
-        <div ref={chatEndRef} />
-      </div>
-
-      {/* Answer input */}
-      <div className="border-t border-border/50 bg-card p-4 shrink-0">
-        {!activeSession?.isComplete && currentQuestion ? (
-          <div className="space-y-3 max-w-3xl mx-auto w-full">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Target className="h-3 w-3" />
-              Q{activeSession.currentQuestionIndex + 1} of {activeSession.questions?.length}
-            </div>
-            <div className="flex gap-2">
-              <textarea
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                placeholder="Type your answer..."
-                rows={3}
-                className="flex-1 rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm resize-none"
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitAnswer() } }}
-              />
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant={isListening ? 'destructive' : 'outline'}
-                  size="icon"
-                  onClick={toggleListening}
-                  className="h-10 w-10 shrink-0"
-                  title={isListening ? 'Stop recording' : 'Start voice input'}
-                >
-                  {isListening ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                </Button>
-                <Button
-                  size="icon"
-                  onClick={handleSubmitAnswer}
-                  disabled={submitMutation.isPending || !answer.trim()}
-                  className="h-10 w-10 shrink-0"
-                >
-                  {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            {isListening && (
-              <div className="flex items-center gap-2 text-sm text-orange-500 animate-pulse">
-                <Mic className="h-4 w-4" />
-                Listening... speak your answer
-              </div>
-            )}
-          </div>
-        ) : activeSession?.isComplete ? (
-          <div className="text-center py-4 max-w-3xl mx-auto">
-            <p className="text-lg font-bold text-emerald-500">Interview Complete!</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {activeSession.averageScore > 0 && `Average Score: ${activeSession.averageScore}/10`}
-            </p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => setIsFullScreen(false)}>
-              <Minimize2 className="h-4 w-4 mr-1" /> Exit Full Screen
-            </Button>
-          </div>
-        ) : null}
-      </div>
-
-      {error && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 text-sm text-destructive bg-destructive/10 px-4 py-2 rounded-xl border border-destructive/20">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
+          )}
         </div>
-      )}
+
+        {/* Right Column: Code Compiler & Test Suite Workspace (for coding questions) */}
+        {isCodingQuestion && !activeSession?.isComplete && currentQuestion && (
+          <div className="lg:col-span-7 h-full p-4 overflow-hidden bg-background">
+            <CodingWorkspace
+              question={currentQuestion}
+              language={activeSession?.selectedLanguage || selectedLanguage}
+              onLanguageChange={(lang) => setSelectedLanguage(lang)}
+              onExecuteCode={handleExecuteCode}
+              isExecuting={executeCodeMutation.isPending}
+              onSubmitCode={handleSubmitCodeSolution}
+              isSubmitting={submitMutation.isPending}
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 
   if (isLoading) {
     return (
-      <div className="w-full space-y-6 pt-4">
-        <Skeleton className="h-4 w-32" />
-        <Skeleton className="h-96" />
+      <div className="container max-w-6xl mx-auto px-4 py-8 space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     )
   }
 
-  if (!resume) return null
+  if (!resume) {
+    return (
+      <div className="container max-w-6xl mx-auto px-4 py-16 text-center space-y-4">
+        <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+        <h2 className="text-xl font-bold">Resume Not Found</h2>
+        <p className="text-sm text-muted-foreground">The resume associated with this interview could not be loaded.</p>
+        <Button onClick={() => window.location.href = '/dashboard'}>Back to Dashboard</Button>
+      </div>
+    )
+  }
+
 
   return (
-    <>
-      {/* Full screen overlay */}
+    <PageTransition>
       {isFullScreen && activeSession && renderFullScreen()}
 
-      <PageTransition>
-        <div className="w-full space-y-6 pt-4">
-          <AnalysisNavigation resume={resume} resumeId={resumeId} />
+      {/* Post-Interview Comprehensive Feedback Modal */}
+      {viewingFeedbackSession && (
+        <InterviewFeedbackModal
+          session={viewingFeedbackSession}
+          onClose={() => setViewingFeedbackSession(null)}
+        />
+      )}
 
-          {/* Start New Session */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Mic className="h-5 w-5 text-orange-500" />
-                Mock Interview with Voice
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Practice answering interview questions aloud. Get AI feedback on your responses.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Question Type</label>
-                  <select
-                    value={questionType}
-                    onChange={(e) => setQuestionType(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm"
-                  >
-                    <option value="mixed">Mixed (Technical + Behavioral)</option>
-                    <option value="technical">Technical Only</option>
-                    <option value="behavioral">Behavioral Only</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Duration (minutes)</label>
-                  <select
-                    value={totalSeconds}
-                    onChange={(e) => { setTotalSeconds(Number(e.target.value)); setTimeLeft(Number(e.target.value)) }}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm"
-                  >
-                    <option value={300}>5 minutes</option>
-                    <option value={600}>10 minutes</option>
-                    <option value={900}>15 minutes</option>
-                    <option value={1200}>20 minutes</option>
-                    <option value={1800}>30 minutes</option>
-                  </select>
-                </div>
-              </div>
-              {error && (
-                <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/5 p-3 rounded-xl">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  {error}
-                </div>
-              )}
-              <Button onClick={handleStartSession} disabled={startMutation.isPending} className="w-full">
-                {startMutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Starting Interview...</>
-                ) : (
-                  <><Play className="h-4 w-4" /> Start Mock Interview (Full Screen)</>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+      <div className="container max-w-6xl mx-auto px-4 py-8 space-y-8">
+        <AnalysisNavigation resume={resume} resumeId={resumeId} activeTab="mock-interview" />
 
-          {/* Active Session Card (non-fullscreen view) */}
-          {activeSession && !activeSession.isComplete && (
-            <Card>
-              <CardHeader className="border-b border-border/50 pb-4">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold tracking-tight">Live Technical & HR Interview</h1>
+              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                AI Powered
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Practice live timed interviews with voice input, multi-language code compilation (JS, Python, Java, C++), and detailed post-interview reports.
+            </p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Main Grid Layout: Setup Panel & Past Sessions */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Left / Top: Custom Interview Configurator */}
+          <div className="lg:col-span-7 space-y-6">
+            <Card className="rounded-3xl border-border/80 shadow-lg overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-primary/10 via-background to-secondary/30 pb-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">
-                      Q {activeSession.currentQuestionIndex + 1}/{activeSession.questions?.length || 0}
-                    </Badge>
-                    {activeSession.isComplete && <Badge variant="secondary">Complete</Badge>}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setIsFullScreen(true)} className="h-8">
-                      <Maximize2 className="h-4 w-4 mr-1" /> Full Screen
-                    </Button>
-                    <Button
-                      variant="ghost" size="sm"
-                      onClick={() => setDeleteTarget(activeSession._id)}
-                      className="text-destructive h-8 px-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <Target className="h-5 w-5 text-primary" />
+                    Configure New Interview Session
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGetRecommendation}
+                    disabled={recommendMutation.isPending}
+                    className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+                  >
+                    {recommendMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                    )}
+                    AI Recommend from Resume
+                  </Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-0">
-                <div className="max-h-[400px] overflow-y-auto p-4 space-y-4">
-                  {activeSession.chatHistory?.map((entry, idx) => {
-                    let parsedFeedback = null
-                    if (entry.feedback) { try { parsedFeedback = JSON.parse(entry.feedback) } catch { /* empty */ } }
-                    return (
-                      <div key={idx} className={`flex gap-3 ${entry.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${entry.role === 'user' ? 'bg-primary/10' : 'bg-orange-500/10'}`}>
-                          {entry.role === 'user' ? <User className="h-4 w-4 text-primary" /> : <Bot className="h-4 w-4 text-orange-500" />}
-                        </div>
-                        <div className={`max-w-[80%] ${entry.role === 'user' ? 'bg-primary/10' : 'bg-secondary'} rounded-2xl px-4 py-3`}>
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{entry.message}</p>
-                          {entry.feedback && entry.role === 'assistant' && parsedFeedback?.score && (
-                            <div className="mt-2 pt-2 border-t border-border/40 flex items-center gap-2">
-                              <Trophy className="h-3.5 w-3.5 text-amber-500" />
-                              <span className="text-xs font-bold">Score: {parsedFeedback.score}/10</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                  <div ref={chatEndRef} />
-                </div>
-                {currentQuestion && !activeSession.isComplete && (
-                  <div className="border-t border-border/50 p-4 space-y-3">
-                    <p className="text-xs text-muted-foreground text-center">
-                      Q{activeSession.currentQuestionIndex + 1}: {currentQuestion.question}
-                    </p>
-                    <Button onClick={() => setIsFullScreen(true)} className="w-full">
-                      <Maximize2 className="h-4 w-4 mr-1" /> Continue in Full Screen
-                    </Button>
+
+              <CardContent className="p-6 space-y-6">
+                {aiRationale && (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-600 dark:text-amber-400 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4" /> AI Resume Analysis Recommendation:
+                    </div>
+                    <p>{aiRationale}</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Analytics Section */}
-          {completedSessions.length > 0 && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <BarChart3 className="h-5 w-5 text-orange-500" />
-                  Your Progress & Analytics
-                </CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => setShowAnalytics(!showAnalytics)}>
-                  {showAnalytics ? 'Hide' : 'Show'} Charts
-                </Button>
-              </CardHeader>
-              {showAnalytics && (
-                <CardContent className="space-y-8">
-                  {/* Score trend across sessions */}
-                  {progressData.length > 1 && (
-                    <div>
-                      <h4 className="text-sm font-bold mb-3">Score Trend Across Sessions</h4>
-                      <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={progressData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f015" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} label={{ value: 'Session', position: 'bottom', fontSize: 10 }} />
-                          <YAxis domain={[0, 10]} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(v) => [`${v}/10`, 'Avg Score']} labelFormatter={(l) => `Session ${l}`} />
-                          <Line type="monotone" dataKey="score" stroke="var(--color-orange-500, #f97316)" strokeWidth={2} dot={{ r: 4 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
+                {/* Target Role */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-foreground uppercase tracking-wider">Target Job Role</label>
+                  <div className="relative">
+                    <Briefcase className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={targetRole}
+                      onChange={(e) => setTargetRole(e.target.value)}
+                      placeholder="e.g. Senior React Developer, Full Stack Engineer"
+                      className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-border bg-background focus:ring-1 focus:ring-primary outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Category Selection */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-foreground uppercase tracking-wider">Interview Category</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCategory('technical')}
+                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1.5 ${
+                        category === 'technical'
+                          ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                          : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
+                      }`}
+                    >
+                      <Code2 className="h-5 w-5 text-primary" />
+                      <span className="text-xs font-bold text-foreground">Technical & Coding</span>
+                      <span className="text-[11px] text-muted-foreground">Code compiler + algorithm questions</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCategory('hr')}
+                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1.5 ${
+                        category === 'hr'
+                          ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                          : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
+                      }`}
+                    >
+                      <User className="h-5 w-5 text-indigo-500" />
+                      <span className="text-xs font-bold text-foreground">HR & Behavioral</span>
+                      <span className="text-[11px] text-muted-foreground">STAR method + scenario questions</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCategory('ai_suggested')}
+                      className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1.5 ${
+                        category === 'ai_suggested'
+                          ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                          : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
+                      }`}
+                    >
+                      <Sparkles className="h-5 w-5 text-amber-500" />
+                      <span className="text-xs font-bold text-foreground">AI Suggested</span>
+                      <span className="text-[11px] text-muted-foreground">Tailored to candidate's resume</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Coding Language Selection (if technical) */}
+                {category !== 'hr' && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-foreground uppercase tracking-wider">Coding Language</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: 'javascript', label: 'JavaScript' },
+                        { id: 'python', label: 'Python' },
+                        { id: 'java', label: 'Java' },
+                        { id: 'cpp', label: 'C++' },
+                      ].map((lang) => (
+                        <button
+                          key={lang.id}
+                          type="button"
+                          onClick={() => setSelectedLanguage(lang.id)}
+                          className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                            selectedLanguage === lang.id
+                              ? 'border-primary bg-primary/15 text-primary shadow-xs'
+                              : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
+                          }`}
+                        >
+                          {lang.label}
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Current session per-question scores */}
-                  {scoreChartData.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-bold mb-3">Per-Question Scores {activeSession?.isComplete ? '(Latest Session)' : ''}</h4>
-                      <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={scoreChartData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f015" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                          <YAxis domain={[0, 10]} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(v) => [`${v}/10`, 'Score']} />
-                          <Bar dataKey="score" radius={[6, 6, 0, 0]} barSize={40} fill="var(--color-orange-500, #f97316)" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-
-                  {/* Session summary cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {completedSessions.slice(0, 6).map((s) => (
-                      <Card key={s._id} className="border border-border/60">
-                        <CardContent className="p-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Badge variant="outline" className="text-xs">
-                              {new Date(s.createdAt).toLocaleDateString()}
-                            </Badge>
-                            <Badge variant={s.averageScore >= 7 ? 'secondary' : s.averageScore >= 4 ? 'outline' : 'destructive'} className="text-xs">
-                              {s.averageScore}/10
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {s.questions?.length || 0} questions &middot; {s.scores?.length || 0} answered
-                          </p>
-                          <div className="flex gap-1">
-                            {s.scores?.map((sc, i) => (
-                              <div key={i} className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full ${sc.score >= 7 ? 'bg-emerald-500' : sc.score >= 4 ? 'bg-amber-500' : 'bg-destructive'}`}
-                                  style={{ width: `${(sc.score / 10) * 100}%` }}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
+                {/* Duration / Timer Selection */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-foreground uppercase tracking-wider">Session Duration</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[5, 10, 15, 30].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => setDurationMinutes(mins)}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                          durationMinutes === mins
+                            ? 'border-orange-500 bg-orange-500/15 text-orange-500 shadow-xs'
+                            : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
+                        }`}
+                      >
+                        <Clock className="h-3.5 w-3.5" />
+                        {mins} Mins
+                      </button>
                     ))}
                   </div>
-                </CardContent>
-              )}
-            </Card>
-          )}
-
-          {/* Past Sessions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Past Interview Sessions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {sessionsLoading ? (
-                <Skeleton className="h-32" />
-              ) : sessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No interview sessions yet. Start a new session above.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {sessions.map((s) => (
-                    <div key={s._id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border border-border/50">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={s.isComplete ? 'secondary' : 'outline'} className="text-xs">
-                            {s.isComplete ? 'Completed' : 'In Progress'}
-                          </Badge>
-                          {s.averageScore > 0 && (
-                            <Badge variant="outline" className="text-xs">
-                              {s.averageScore}/10
-                            </Badge>
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(s.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {s.questions?.length || 0} questions &middot; {s.chatHistory?.length || 0} exchanges
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => setActiveSessionId(s._id)}>
-                          View
-                        </Button>
-                        <Button
-                          variant="ghost" size="sm"
-                          onClick={() => setDeleteTarget(s._id)}
-                          className="text-destructive h-8 px-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* Completed Session Detail */}
-          {activeSession?.isComplete && !isFullScreen && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-amber-500" />
-                  Session Results
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {scoreChartData.length > 0 && (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={scoreChartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f015" />
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis domain={[0, 10]} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(v) => [`${v}/10`, 'Score']} />
-                      <Bar dataKey="score" radius={[8, 8, 0, 0]} barSize={50}>
-                        {scoreChartData.map((entry, idx) => (
-                          <Cell key={idx} fill={entry.score >= 7 ? '#10b981' : entry.score >= 4 ? '#f59e0b' : '#ef4444'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-                <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className="text-center">
-                    <p className="text-2xl font-black text-foreground">{activeSession.averageScore || '-'}</p>
-                    <p className="text-xs text-muted-foreground">Average Score</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-black text-foreground">{activeSession.scores?.length || 0}</p>
-                    <p className="text-xs text-muted-foreground">Answered</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-black text-foreground">{activeSession.questions?.length || 0}</p>
-                    <p className="text-xs text-muted-foreground">Total Questions</p>
-                  </div>
-                </div>
+                {/* Launch Button */}
+                <Button
+                  onClick={handleStartSession}
+                  disabled={startMutation.isPending}
+                  className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl shadow-lg gap-2"
+                >
+                  {startMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Generating AI Interview Questions...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-5 w-5 fill-current" />
+                      Start Live Interview (Fullscreen & Timer)
+                    </>
+                  )}
+                </Button>
               </CardContent>
             </Card>
-          )}
-        </div>
-      </PageTransition>
+          </div>
 
-      {/* Delete Confirmation Modal */}
+          {/* Right / Bottom: Past Sessions & Analytics */}
+          <div className="lg:col-span-5 space-y-6">
+            <Card className="rounded-3xl border-border/80 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 text-emerald-500" />
+                    Completed Interview Sessions
+                  </span>
+                  <Badge variant="outline" className="text-xs font-mono">
+                    {sessions.length} Total
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                {sessionsLoading ? (
+                  <Skeleton className="h-32 w-full rounded-2xl" />
+                ) : sessions.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground space-y-2">
+                    <Trophy className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+                    <p className="text-xs">No mock interview sessions completed yet. Start one above!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                    {sessions.map((s) => (
+                      <div
+                        key={s._id}
+                        className="p-4 rounded-2xl border border-border/80 bg-card hover:border-primary/40 transition-all space-y-2 group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="text-[11px] uppercase">
+                              {s.category || s.questionType || 'Technical'}
+                            </Badge>
+                            {s.selectedLanguage && (
+                              <Badge variant="outline" className="text-[11px] font-mono uppercase">
+                                {s.selectedLanguage}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteTarget(s._id)}
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            {new Date(s.createdAt).toLocaleDateString()} at {new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className="font-bold text-foreground font-mono">
+                            Avg Score: {s.averageScore}/10
+                          </span>
+                        </div>
+
+                        <div className="pt-2 border-t border-border/40 flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {s.questions?.length || 0} Questions
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setViewingFeedbackSession(s)}
+                            className="h-7 px-2.5 text-xs text-primary border-primary/30 hover:bg-primary/10 gap-1 font-semibold"
+                          >
+                            <Trophy className="h-3 w-3 text-amber-500" />
+                            View Feedback Report
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
       <ConfirmModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
+        onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDeleteConfirm}
-        title="Delete Interview Session"
-        description="Are you sure you want to delete this interview session? This action cannot be undone."
-        confirmLabel={isDeleting ? 'Deleting...' : 'Delete Session'}
-        confirmVariant="destructive"
+        title="Delete Interview Session?"
+        description="Are you sure you want to delete this mock interview session history? This action cannot be undone."
+        confirmLabel="Delete Session"
         isConfirming={isDeleting}
       />
-    </>
+
+    </PageTransition>
   )
 }

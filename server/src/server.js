@@ -1,3 +1,4 @@
+import dns from 'node:dns'
 import express from 'express'
 import mongoose from 'mongoose'
 import cors from 'cors'
@@ -9,6 +10,12 @@ import { errorHandler, notFound } from './middleware/errorMiddleware.js'
 import apiRoutes from './routes/api.js'
 import logger from './utils/logger.js'
 import { apiLimiter } from './middleware/rateLimiter.js'
+
+// Some local DNS proxies (VPNs, ad-blockers) listen on 127.0.0.1 and refuse the SRV lookups
+// that mongodb+srv:// needs. Only in that case, fall back to public resolvers.
+if (dns.getServers().every((s) => s.startsWith('127.') || s === '::1')) {
+  dns.setServers(['1.1.1.1', '8.8.8.8'])
+}
 
 const app = express()
 const PORT = process.env.PORT || 5000

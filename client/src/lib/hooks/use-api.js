@@ -207,6 +207,12 @@ export function useMockInterviewSessions(id) {
   })
 }
 
+export function useAIInterviewRecommendation() {
+  return useMutation({
+    mutationFn: (id) => api.post(`/resumes/${id}/mock-interview/recommend`).then((r) => r.data),
+  })
+}
+
 export function useStartMockInterview() {
   const qc = useQueryClient()
   return useMutation({
@@ -219,11 +225,29 @@ export function useStartMockInterview() {
   })
 }
 
+export function useExecuteInterviewCode() {
+  return useMutation({
+    mutationFn: ({ resumeId, ...body }) =>
+      api.post(`/resumes/${resumeId}/mock-interview/execute-code`, body).then((r) => r.data),
+  })
+}
+
 export function useSubmitMockAnswer() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ resumeId, sessionId, answer }) =>
-      api.post(`/resumes/${resumeId}/mock-interview/${sessionId}/answer`, { answer }).then((r) => r.data),
+    mutationFn: ({ resumeId, sessionId, answer, codeSubmission }) =>
+      api.post(`/resumes/${resumeId}/mock-interview/${sessionId}/answer`, { answer, codeSubmission }).then((r) => r.data),
+    onSuccess: (data, { resumeId }) => {
+      qc.invalidateQueries({ queryKey: ['mock-interview', resumeId] })
+    },
+  })
+}
+
+export function useFinalizeMockInterview() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ resumeId, sessionId }) =>
+      api.post(`/resumes/${resumeId}/mock-interview/${sessionId}/finalize`).then((r) => r.data),
     onSuccess: (data, { resumeId }) => {
       qc.invalidateQueries({ queryKey: ['mock-interview', resumeId] })
     },
@@ -239,6 +263,7 @@ export function useDeleteMockInterview() {
     },
   })
 }
+
 
 // ── Job Applications ───────────────────────────────────
 export function useJobApplications(id) {

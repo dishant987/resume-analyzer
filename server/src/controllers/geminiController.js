@@ -18,8 +18,16 @@ import { generateInterviewQuestions } from '../services/gemini/interviewService.
 import { generateCareerRoadmap } from '../services/gemini/careerService.js'
 import { getSalaryEstimates, getNegotiationChatResponse } from '../services/gemini/salaryService.js'
 import { generateNetworkingMessage } from '../services/gemini/networkingService.js'
-import { generateMockInterviewQuestions, evaluateAnswer } from '../services/gemini/mockInterviewService.js'
+import {
+  generateMockInterviewQuestions,
+  evaluateAnswer,
+  generateAIInterviewRecommendation,
+  generateCustomInterviewQuestions,
+  generateFinalInterviewReport
+} from '../services/gemini/mockInterviewService.js'
+import { executeCodeService } from '../services/codeExecutionService.js'
 import { generateLinkedInProfile } from '../services/gemini/linkedinService.js'
+
 
 export const analyzeResumeById = async (req, res, next) => {
   try {
@@ -536,32 +544,72 @@ export const deleteNetworkingMessage = async (req, res, next) => {
 }
 
 // ----------------------------------------------------
-// MOCK INTERVIEW WITH VOICE/SPEECH CONTROLLER ACTIONS
+// MOCK INTERVIEW WITH VOICE/SPEECH & CODE COMPILER CONTROLLER ACTIONS
 // ----------------------------------------------------
+export const getAIInterviewRecommendation = async (req, res, next) => {
+  try {
+    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user._id, deletedAt: null })
+    if (!resume) return res.status(404).json({ message: 'Resume not found' })
+    if (!resume.rawText) return res.status(400).json({ message: 'Resume has no extracted text' })
+
+    const recommendation = await generateAIInterviewRecommendation(resume.rawText)
+    res.json({ recommendation })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export const startMockInterview = async (req, res, next) => {
   try {
     const resume = await Resume.findOne({ _id: req.params.id, userId: req.user._id, deletedAt: null })
     if (!resume) return res.status(404).json({ message: 'Resume not found' })
     if (!resume.rawText) return res.status(400).json({ message: 'Resume has no extracted text' })
 
-    const { questionType } = req.body
-    const prepData = await generateMockInterviewQuestions(resume.rawText)
+    const {
+      category = 'technical',
+      durationMinutes = 15,
+      selectedLanguage = 'javascript',
+      targetRole = 'Software Engineer',
+      questionType = 'mixed'
+    } = req.body
+
+    let prepData
+    if (category === 'technical' || category === 'hr' || category === 'ai_suggested') {
+      prepData = await generateCustomInterviewQuestions({
+        resumeText: resume.rawText,
+        category,
+        selectedLanguage,
+        durationMinutes: Number(durationMinutes) || 15,
+        targetRole
+      })
+    } else {
+      prepData = await generateMockInterviewQuestions(resume.rawText)
+    }
+
+    const questions = prepData?.questions || []
+    if (!questions.length) {
+      return res.status(500).json({ message: 'Failed to generate interview questions. Please try again.' })
+    }
 
     const session = await MockInterviewSession.create({
       resumeId: resume._id,
       userId: req.user._id,
-      questionType: questionType || 'mixed',
-      questions: prepData.questions,
+      category,
+      questionType,
+      durationMinutes: Number(durationMinutes) || 15,
+      selectedLanguage: selectedLanguage || 'javascript',
+      targetRole: targetRole || 'Software Engineer',
+      questions,
       currentQuestionIndex: 0,
       chatHistory: [
         {
           role: 'assistant',
-          message: `Let's start your mock interview! I'll ask you ${prepData.questions.length} questions. Take your time and answer each one naturally. Good luck!`,
+          message: `Welcome to your ${category.toUpperCase()} Mock Interview for "${targetRole}"!\nDuration: ${durationMinutes} minutes | Language: ${selectedLanguage.toUpperCase()}\n\nWe will go through ${questions.length} questions. Good luck!`,
           feedback: '',
         },
         {
           role: 'assistant',
-          message: `First question:\n\n${prepData.questions[0].question}`,
+          message: `Question 1 (${questions[0].type || 'general'}):\n\n${questions[0].question}`,
           feedback: '',
         },
       ],
@@ -573,13 +621,21 @@ export const startMockInterview = async (req, res, next) => {
   }
 }
 
-export const getMockInterviewSessions = async (req, res, next) => {
+export const executeInterviewCode = async (req, res, next) => {
   try {
     const resume = await Resume.findOne({ _id: req.params.id, userId: req.user._id, deletedAt: null })
     if (!resume) return res.status(404).json({ message: 'Resume not found' })
 
-    const sessions = await MockInterviewSession.find({ resumeId: resume._id, userId: req.user._id }).sort({ createdAt: -1 })
-    res.json({ sessions })
+    const { language = 'javascript', code = '', testCases = [], question = '' } = req.body
+
+    const result = await executeCodeService({
+      language,
+      code,
+      testCases,
+      question
+    })
+
+    res.json({ result })
   } catch (err) {
     next(err)
   }
@@ -594,17 +650,34 @@ export const submitMockInterviewAnswer = async (req, res, next) => {
     if (!session) return res.status(404).json({ message: 'Interview session not found' })
     if (session.isComplete) return res.status(400).json({ message: 'Interview session is already complete' })
 
-    const { answer } = req.body
-    if (!answer || !answer.trim()) return res.status(400).json({ message: 'Answer is required' })
+    const { answer, codeSubmission } = req.body
+    if ((!answer || !answer.trim()) && !codeSubmission) {
+      return res.status(400).json({ message: 'Answer or code submission is required' })
+    }
 
     const currentQuestion = session.questions[session.currentQuestionIndex]
     if (!currentQuestion) return res.status(400).json({ message: 'No more questions in this session' })
 
+    const answerToSend = answer || (codeSubmission ? `\`\`\`${codeSubmission.language}\n${codeSubmission.code}\n\`\`\`` : '')
+
     // Save user answer
-    session.chatHistory.push({ role: 'user', message: answer, feedback: '' })
+    session.chatHistory.push({ role: 'user', message: answerToSend, feedback: '' })
+
+    // Save coding submission if present
+    if (codeSubmission) {
+      session.codingSubmissions.push({
+        questionIndex: session.currentQuestionIndex,
+        language: codeSubmission.language || session.selectedLanguage,
+        code: codeSubmission.code || '',
+        compiledSuccessfully: codeSubmission.compiledSuccessfully !== false,
+        passedCount: codeSubmission.passedCount || 0,
+        totalCount: codeSubmission.totalCount || 0,
+        testResults: codeSubmission.testResults || [],
+      })
+    }
 
     // Get AI feedback on the answer
-    const feedback = await evaluateAnswer(currentQuestion.question, answer, currentQuestion.type)
+    const feedback = await evaluateAnswer(currentQuestion.question, answerToSend, currentQuestion.type)
 
     // Store score
     const score = typeof feedback.score === 'number' ? feedback.score : 5
@@ -626,7 +699,7 @@ export const submitMockInterviewAnswer = async (req, res, next) => {
 
     const feedbackText = `${feedback.feedback}${feedback.strengths ? '\n\nStrengths: ' + feedback.strengths : ''}${feedback.improvementTip ? '\n\nTip: ' + feedback.improvementTip : ''}`
 
-    // Feedback message (always shown)
+    // Feedback message
     session.chatHistory.push({
       role: 'assistant',
       message: feedbackText,
@@ -637,22 +710,66 @@ export const submitMockInterviewAnswer = async (req, res, next) => {
     if (isComplete) {
       session.isComplete = true
       session.completedAt = new Date()
+
+      // Generate comprehensive final feedback report
+      try {
+        const finalReport = await generateFinalInterviewReport(session)
+        session.finalFeedback = finalReport
+      } catch (err) {
+        console.error('Final feedback report generation error:', err)
+      }
+
       session.chatHistory.push({
         role: 'assistant',
-        message: `Interview complete. Average score: ${session.averageScore}/10 — check the analytics section for a full breakdown.`,
+        message: `Interview complete! Overall Score: ${session.finalFeedback?.overallScore || Math.round(session.averageScore * 10)}/100. Review your full feedback report below.`,
         feedback: '',
       })
     } else {
       const nextQ = session.questions[session.currentQuestionIndex]
       session.chatHistory.push({
         role: 'assistant',
-        message: `Next question:\n\n${nextQ.question}`,
+        message: `Question ${session.currentQuestionIndex + 1} (${nextQ.type || 'general'}):\n\n${nextQ.question}`,
         feedback: '',
       })
     }
 
     await session.save()
     res.json({ session })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export const finalizeMockInterview = async (req, res, next) => {
+  try {
+    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user._id, deletedAt: null })
+    if (!resume) return res.status(404).json({ message: 'Resume not found' })
+
+    const session = await MockInterviewSession.findOne({ _id: req.params.sessionId, resumeId: resume._id, userId: req.user._id })
+    if (!session) return res.status(404).json({ message: 'Interview session not found' })
+
+    session.isComplete = true
+    session.completedAt = new Date()
+
+    if (!session.finalFeedback || !session.finalFeedback.overallScore) {
+      const finalReport = await generateFinalInterviewReport(session)
+      session.finalFeedback = finalReport
+    }
+
+    await session.save()
+    res.json({ session })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export const getMockInterviewSessions = async (req, res, next) => {
+  try {
+    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user._id, deletedAt: null })
+    if (!resume) return res.status(404).json({ message: 'Resume not found' })
+
+    const sessions = await MockInterviewSession.find({ resumeId: resume._id, userId: req.user._id }).sort({ createdAt: -1 })
+    res.json({ sessions })
   } catch (err) {
     next(err)
   }
@@ -671,6 +788,7 @@ export const deleteMockInterviewSession = async (req, res, next) => {
     next(err)
   }
 }
+
 
 // ----------------------------------------------------
 // JOB APPLICATION TRACKER CONTROLLER ACTIONS

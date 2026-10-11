@@ -9,7 +9,7 @@ import ThemeToggle from './theme-toggle'
 import Logo from './logo'
 import {
   LayoutDashboard, Upload, Menu, LogOut, Loader2, User, ChevronLeft, ChevronRight,
-  ShieldAlert, Briefcase, Mail, MessageSquare, Compass, Coins
+  ShieldAlert, Briefcase, Mail, MessageSquare, Compass, Coins, Bot
 } from 'lucide-react'
 
 const navItems = [
@@ -62,9 +62,11 @@ export default function DashboardLayout() {
     { href: `/analysis/${activeResumeId}/job-matcher`, label: 'ATS Job Matcher', icon: Briefcase },
     { href: `/analysis/${activeResumeId}/cover-letter`, label: 'Cover Letter', icon: Mail },
     { href: `/analysis/${activeResumeId}/interview-prep`, label: 'Interview Prep', icon: MessageSquare },
+    { href: `/analysis/${activeResumeId}/mock-interview`, label: 'Live AI Interview', icon: Bot },
     { href: `/analysis/${activeResumeId}/roadmap`, label: 'Career Roadmap', icon: Compass },
     { href: `/analysis/${activeResumeId}/salary-negotiation`, label: 'Salary Coach', icon: Coins }
   ] : []
+
 
   if (loading) {
     return (
@@ -125,7 +127,10 @@ export default function DashboardLayout() {
         crumbs.push({ label: 'Cover Letter', href: `/analysis/${parts[1]}/cover-letter` })
       } else if (parts[2] === 'interview-prep') {
         crumbs.push({ label: 'Interview Prep', href: `/analysis/${parts[1]}/interview-prep` })
+      } else if (parts[2] === 'mock-interview') {
+        crumbs.push({ label: 'Live AI Interview', href: `/analysis/${parts[1]}/mock-interview` })
       } else if (parts[2] === 'roadmap') {
+
         crumbs.push({ label: 'Career Roadmap', href: `/analysis/${parts[1]}/roadmap` })
       } else if (parts[2] === 'salary-negotiation') {
         crumbs.push({ label: 'Salary Negotiation', href: `/analysis/${parts[1]}/salary-negotiation` })

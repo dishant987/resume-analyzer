@@ -1,7 +1,9 @@
 import { getModel } from './client.js'
 import logger from '../../utils/logger.js'
+import Groq from 'groq-sdk'
+import { Mistral } from '@mistralai/mistralai'
 
-// Helper to call Mistral API using native fetch (OpenAI-compatible)
+// Helper to call Mistral API using official SDK
 const callMistral = async (prompt, schema) => {
   if (!process.env.MISTRAL_API_KEY) {
     throw new Error('Mistral API Key is not configured.')
@@ -14,30 +16,19 @@ ${JSON.stringify(schema, null, 2)}
 
 Do not include any conversational preamble, markdown code blocks (such as \`\`\`json), or notes. Output only raw, clean, parseable JSON.`
 
-  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'mistral-large-latest',
-      messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
-    })
+  const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY })
+
+  const response = await mistral.chat.complete({
+    model: process.env.MISTRAL_MODEL || 'mistral-large-latest',
+    messages: [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.1,
+    responseFormat: { type: 'json_object' }
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Mistral API status ${response.status}: ${errorText}`)
-  }
-
-  const data = await response.json()
-  const content = data.choices?.[0]?.message?.content
+  const content = response.choices?.[0]?.message?.content
   if (!content) {
     throw new Error('Mistral API returned an empty response content.')
   }
@@ -50,7 +41,7 @@ Do not include any conversational preamble, markdown code blocks (such as \`\`\`
   }
 }
 
-// Helper to call Groq API using native fetch
+// Helper to call Groq API using official SDK
 const callGroq = async (prompt, schema) => {
   if (!process.env.GROQ_API_KEY) {
     throw new Error('Groq API Key is not configured.')
@@ -63,30 +54,19 @@ ${JSON.stringify(schema, null, 2)}
 
 Do not include any conversational preamble, markdown code blocks (such as \`\`\`json), or notes. Output only raw, clean, parseable JSON.`
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
-    })
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+
+  const chatCompletion = await groq.chat.completions.create({
+    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    messages: [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.1,
+    response_format: { type: 'json_object' }
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Groq API status ${response.status}: ${errorText}`)
-  }
-
-  const data = await response.json()
-  const content = data.choices?.[0]?.message?.content
+  const content = chatCompletion.choices?.[0]?.message?.content
   if (!content) {
     throw new Error('Groq API returned an empty response content.')
   }

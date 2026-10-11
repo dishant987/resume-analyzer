@@ -158,3 +158,55 @@ h6 {
     linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
 }
+
+/* Recharts UI & Theme Contrast Fixes */
+.recharts-default-tooltip {
+  background-color: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 0.75rem !important;
+  color: var(--card-foreground) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4) !important;
+  padding: 10px 14px !important;
+}
+
+.recharts-tooltip-label {
+  color: var(--foreground) !important;
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  margin-bottom: 4px !important;
+}
+
+.recharts-tooltip-item-list li,
+.recharts-tooltip-item,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value {
+  color: var(--foreground) !important;
+  font-size: 0.8rem !important;
+}
+
+.recharts-cartesian-axis-tick-value,
+.recharts-polar-angle-axis-tick-value,
+.recharts-polar-radius-axis-tick-value,
+.recharts-text {
+  fill: var(--muted-foreground) !important;
+}
+
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: var(--border) !important;
+}
+
+.recharts-cartesian-grid line {
+  stroke: var(--border) !important;
+  stroke-opacity: 0.4 !important;
+}
+
+.recharts-polar-grid path,
+.recharts-polar-grid line {
+  stroke: var(--border) !important;
+  stroke-opacity: 0.5 !important;
+}
+
+.recharts-polar-angle-axis-line {
+  stroke: var(--border) !important;
+}
